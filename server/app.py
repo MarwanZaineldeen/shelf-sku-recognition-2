@@ -35,11 +35,34 @@ from server.schemas import (
 config_path = workspace_root / "configs/retrieval_config.yaml"
 lexicon_path = workspace_root / "configs/class_lexicons.json"
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+
 app = FastAPI(
     title="Enterprise Retail AI Platform",
     description="Production-grade supermarket shelf product localization and SKU recognition platform.",
     version="1.0.0"
 )
+
+# Mount static web frontend files
+static_dir = workspace_root / "server/static"
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+@app.get("/")
+def get_dashboard():
+    index_html = static_dir / "index.html"
+    if index_html.exists():
+        return FileResponse(index_html)
+    return JSONResponse({"message": "Retail AI API running. UI index.html not found."})
+
+@app.get("/api/catalog")
+def get_catalog():
+    sku_mapping_path = workspace_root / "configs/sku_mapping.json"
+    if sku_mapping_path.exists():
+        with open(sku_mapping_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"classes": {}}
 
 # Global orchestrator and registry storage references
 orchestrator: Any = None

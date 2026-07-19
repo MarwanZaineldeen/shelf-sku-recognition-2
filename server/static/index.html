@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Retail AI | Shelf Product Recognition & HITL Audit Suite</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+    <!-- Header Navbar -->
+    <header class="app-navbar glass-panel">
+        <div class="nav-left">
+            <div class="brand-logo">
+                <i class="fa-solid fa-layer-group brand-icon"></i>
+                <div class="brand-text">
+                    <span class="brand-name">RETAIL<span class="gradient-text">AI</span></span>
+                    <span class="brand-subtitle">Enterprise Shelf SKU Audit Platform</span>
+                </div>
+            </div>
+        </div>
+        <div class="nav-center">
+            <nav class="nav-tabs">
+                <button class="nav-tab active" data-tab="shelf-audit">
+                    <i class="fa-solid fa-expand"></i> Shelf Audit Inspection
+                </button>
+                <button class="nav-tab" data-tab="hitl-queue">
+                    <i class="fa-solid fa-user-check"></i> HITL Review Queue <span class="badge badge-rose" id="nav-hitl-count">0</span>
+                </button>
+                <button class="nav-tab" data-tab="catalog-explorer">
+                    <i class="fa-solid fa-boxes-stacked"></i> Commercial Catalog (67 SKUs)
+                </button>
+                <button class="nav-tab" data-tab="latency-benchmark">
+                    <i class="fa-solid fa-chart-line"></i> Latency & Architecture
+                </button>
+            </nav>
+        </div>
+        <div class="nav-right">
+            <div class="status-indicator online">
+                <span class="pulse-dot"></span>
+                <span class="status-text">YOLOv8 + DINOv2 Online</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main App Container -->
+    <main class="app-main-container">
+        
+        <!-- Tab 1: Shelf Audit Inspection -->
+        <section id="tab-shelf-audit" class="tab-content active">
+            <!-- Top Controls Bar -->
+            <div class="control-bar glass-panel">
+                <div class="control-group">
+                    <label class="control-label"><i class="fa-solid fa-image"></i> Select Audit Shelf Image:</label>
+                    <select id="shelf-image-select" class="custom-select">
+                        <option value="Transmed Others 285.jpg">Transmed Others 285.jpg (168 Product Facings)</option>
+                        <option value="Transmed_Autolabelling2.jpg">Transmed_Autolabelling2.jpg (67 Product Facings)</option>
+                        <option value="Transmed Others 263.jpg">Transmed Others 263.jpg (Large Multi-Brand Shelf)</option>
+                        <option value="Transmed Others 396.jpg">Transmed Others 396.jpg (Lipton Facings)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <button id="run-audit-btn" class="btn btn-primary btn-glow">
+                        <i class="fa-solid fa-play"></i> Run End-to-End Audit Pipeline
+                    </button>
+                </div>
+
+                <div class="control-group filter-group">
+                    <label class="control-label">Box Filter:</label>
+                    <div class="btn-group">
+                        <button class="filter-btn active" data-filter="all">All (168)</button>
+                        <button class="filter-btn filter-auto" data-filter="auto"><i class="fa-solid fa-circle-check"></i> Automated (34)</button>
+                        <button class="filter-btn filter-hitl" data-filter="hitl"><i class="fa-solid fa-triangle-exclamation"></i> HITL Queue (134)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Metric Cards Row -->
+            <div class="metrics-grid">
+                <div class="metric-card glass-panel border-emerald">
+                    <div class="metric-icon bg-emerald-light"><i class="fa-solid fa-boxes-packing"></i></div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="stat-detected">168</span>
+                        <span class="metric-title">Total Products Detected</span>
+                    </div>
+                    <span class="metric-tag tag-emerald">YOLOv8l-SKU110K</span>
+                </div>
+
+                <div class="metric-card glass-panel border-cyan">
+                    <div class="metric-icon bg-cyan-light"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="stat-automated">34</span>
+                        <span class="metric-title">Automated Annotations</span>
+                    </div>
+                    <span class="metric-tag tag-cyan" id="stat-auto-rate">20.2% Auto Rate</span>
+                </div>
+
+                <div class="metric-card glass-panel border-rose">
+                    <div class="metric-icon bg-rose-light"><i class="fa-solid fa-user-shield"></i></div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="stat-hitl">134</span>
+                        <span class="metric-title">HITL Audit Queue</span>
+                    </div>
+                    <span class="metric-tag tag-rose" id="stat-hitl-rate">79.8% HITL Rate</span>
+                </div>
+
+                <div class="metric-card glass-panel border-indigo">
+                    <div class="metric-icon bg-indigo-light"><i class="fa-solid fa-gauge-high"></i></div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="stat-latency">63.6 ms</span>
+                        <span class="metric-title">Per-Facing Latency</span>
+                    </div>
+                    <span class="metric-tag tag-indigo">CPU Optimized</span>
+                </div>
+            </div>
+
+            <!-- Workspace View: Canvas Overlay + Product Inspector Drawer -->
+            <div class="workspace-grid">
+                <!-- Shelf Image Canvas View -->
+                <div class="canvas-panel glass-panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-crosshairs"></i> Shelf Product Bounding Box Overlay</h3>
+                        <div class="legend-group">
+                            <span class="legend-item"><span class="legend-dot green"></span> Automated Match ($P \ge 80\%$)</span>
+                            <span class="legend-item"><span class="legend-dot red"></span> HITL Queue Match ($P < 80\%$)</span>
+                        </div>
+                    </div>
+                    <div class="canvas-wrapper" id="canvas-wrapper">
+                        <img id="shelf-base-img" src="" alt="Shelf Image" class="shelf-img-hidden">
+                        <canvas id="shelf-canvas"></canvas>
+                        <div class="canvas-loader" id="canvas-loader" style="display:none;">
+                            <div class="spinner"></div>
+                            <span>Executing YOLOv8 + DINOv2 Feature Extraction...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Inspector Drawer -->
+                <div class="inspector-panel glass-panel">
+                    <div class="panel-header">
+                        <h3><i class="fa-solid fa-magnifying-glass-chart"></i> Crop SKU Inspector</h3>
+                        <span class="badge badge-purple" id="inspector-crop-id">Select a Crop</span>
+                    </div>
+
+                    <div id="inspector-placeholder" class="empty-state">
+                        <i class="fa-solid fa-hand-pointer"></i>
+                        <p>Click any product bounding box on the shelf image to inspect top predictions and candidates.</p>
+                    </div>
+
+                    <div id="inspector-details" class="inspector-body" style="display: none;">
+                        <!-- Crop Visual & Primary Prediction Card -->
+                        <div class="crop-header-card">
+                            <div class="crop-preview-box">
+                                <img id="inspector-crop-img" src="" alt="Product Crop">
+                            </div>
+                            <div class="crop-primary-meta">
+                                <span class="meta-label">Predicted SKU Title</span>
+                                <h4 id="inspector-sku-title" class="sku-title-text">Lipton Yellow Label Tea- 25 Tea Bags</h4>
+                                <div class="meta-badges">
+                                    <span class="badge badge-brand" id="inspector-brand">Lipton</span>
+                                    <span class="badge badge-pack" id="inspector-pack">25 Bags</span>
+                                    <span class="badge badge-status" id="inspector-status-badge">Automated</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Metric Score Gauges -->
+                        <div class="score-gauges-grid">
+                            <div class="gauge-card">
+                                <span class="gauge-title">Calibrated Probability</span>
+                                <span class="gauge-value highlight-emerald" id="gauge-prob">94.4%</span>
+                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-emerald" id="bar-prob" style="width:94%;"></div></div>
+                            </div>
+
+                            <div class="gauge-card">
+                                <span class="gauge-title">Fused Similarity ($S_{\text{fused}}$)</span>
+                                <span class="gauge-value highlight-cyan" id="gauge-fused">0.8920</span>
+                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-cyan" id="bar-fused" style="width:89%;"></div></div>
+                            </div>
+
+                            <div class="gauge-card">
+                                <span class="gauge-title">DINOv2 Visual Sim ($S_{\text{vis}}$)</span>
+                                <span class="gauge-value highlight-indigo" id="gauge-vis">0.8920</span>
+                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-indigo" id="bar-vis" style="width:89%;"></div></div>
+                            </div>
+
+                            <div class="gauge-card">
+                                <span class="gauge-title">TF-IDF OCR Sim ($S_{\text{tfidf}}$)</span>
+                                <span class="gauge-value highlight-purple" id="gauge-ocr">0.1450</span>
+                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-purple" id="bar-ocr" style="width:14%;"></div></div>
+                            </div>
+                        </div>
+
+                        <!-- Extracted OCR Text Box -->
+                        <div class="ocr-text-card">
+                            <span class="meta-label"><i class="fa-solid fa-font"></i> Extracted EasyOCR Text:</span>
+                            <div class="ocr-text-box" id="inspector-ocr-text">`Lipton YELLOW LABEL TEA`</div>
+                        </div>
+
+                        <!-- Top-5 Candidates Table -->
+                        <div class="top5-candidates-section">
+                            <h4><i class="fa-solid fa-list-ol"></i> Top-5 Generated Candidates</h4>
+                            <div class="table-responsive">
+                                <table class="candidates-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Class</th>
+                                            <th>Commercial SKU Title</th>
+                                            <th>$S_{\text{vis}}$</th>
+                                            <th>$S_{\text{fused}}$</th>
+                                            <th>Prob ($P$)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="top5-candidates-tbody">
+                                        <!-- Candidate rows rendered dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- HITL Action Controls -->
+                        <div class="hitl-actions-bar">
+                            <button id="btn-hitl-approve" class="btn btn-emerald"><i class="fa-solid fa-check"></i> Approve Prediction</button>
+                            <button id="btn-hitl-correct" class="btn btn-rose"><i class="fa-solid fa-pen-to-square"></i> Correct Class</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 2: HITL Review Queue -->
+        <section id="tab-hitl-queue" class="tab-content">
+            <div class="glass-panel section-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-user-check"></i> Human-in-the-Loop (HITL) Audit Review Queue</h2>
+                    <p class="panel-desc">Review low-confidence predictions ($P < 80\%$) and unseen product crops. Approving or correcting crops automatically upserts feature embeddings into the active continual gallery!</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="hitl-queue-table">
+                        <thead>
+                            <tr>
+                                <th>Crop Preview</th>
+                                <th>Crop ID</th>
+                                <th>Top Candidate Prediction</th>
+                                <th>Visual Sim ($S_{\text{vis}}$)</th>
+                                <th>Fused Sim ($S_{\text{fused}}$)</th>
+                                <th>Calibrated Prob ($P$)</th>
+                                <th>Reject Reason</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hitl-queue-tbody">
+                            <!-- HITL items rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: Commercial SKU Catalog Explorer -->
+        <section id="tab-catalog-explorer" class="tab-content">
+            <div class="glass-panel section-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-boxes-stacked"></i> Commercial FMCG Catalog (67 Product Categories)</h2>
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="catalog-search-input" placeholder="Search by SKU Title, Brand, or Class ID...">
+                    </div>
+                </div>
+                <div class="catalog-grid" id="catalog-grid">
+                    <!-- 67 Product Catalog Cards rendered dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 4: Latency & Architecture Benchmark -->
+        <section id="tab-latency-benchmark" class="tab-content">
+            <div class="glass-panel section-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-chart-line"></i> Subsystem Latency & Processing Speed Breakdown</h2>
+                </div>
+                <div class="latency-grid">
+                    <div class="latency-card glass-panel">
+                        <h3>Stage 1: YOLOv8l-SKU110K Localization</h3>
+                        <span class="latency-val">521.0 ms</span>
+                        <p>Class-agnostic bounding box localization across entire shelf.</p>
+                    </div>
+
+                    <div class="latency-card glass-panel">
+                        <h3>Stage 2: Crop Quality Gate</h3>
+                        <span class="latency-val">31.7 ms</span>
+                        <p>Geometry, aspect ratio & Laplacian variance blur audit.</p>
+                    </div>
+
+                    <div class="latency-card glass-panel">
+                        <h3>Stage 3: DINOv2 Feature Extraction</h3>
+                        <span class="latency-val">7,956.1 ms (48.8 ms/facing)</span>
+                        <p>384-D L2-normalized visual embedding extraction.</p>
+                    </div>
+
+                    <div class="latency-card glass-panel">
+                        <h3>Stage 4: Vector Retrieval</h3>
+                        <span class="latency-val">182.0 ms (1.1 ms/facing)</span>
+                        <p>2-Layer SQLite & Cosine index top-K candidate search.</p>
+                    </div>
+
+                    <div class="latency-card glass-panel">
+                        <h3>Stage 5: Gated EasyOCR & TF-IDF</h3>
+                        <span class="latency-val">1,866.6 ms (11.4 ms/facing)</span>
+                        <p>CPU-gated text parsing & character 3-5 n-gram matcher.</p>
+                    </div>
+
+                    <div class="latency-card glass-panel">
+                        <h3>Stage 6: Platt Calibration & Gating</h3>
+                        <span class="latency-val">0.0 ms</span>
+                        <p>Logit sigmoid probability scaling & decision policy routing.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Correction Modal -->
+    <div class="modal-overlay" id="correction-modal" style="display: none;">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen-to-square"></i> Correct Product Classification</h3>
+                <button class="modal-close-btn" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="crop-modal-preview">
+                    <img id="modal-crop-img" src="" alt="Product Crop">
+                    <div class="modal-crop-meta">
+                        <span class="meta-label">Current Top Prediction</span>
+                        <h4 id="modal-current-pred">Lipton Green Tea Mint</h4>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Select Correct Commercial SKU Class:</label>
+                    <select id="modal-class-select" class="custom-select modal-select">
+                        <!-- Class options rendered dynamically -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="modal-submit-btn"><i class="fa-solid fa-floppy-disk"></i> Save & Upsert to Active Gallery</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+</html>

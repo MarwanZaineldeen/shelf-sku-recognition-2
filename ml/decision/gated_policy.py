@@ -6,15 +6,15 @@ class GatedAnnotationPolicy(BaseDecisionPolicy):
     """Decision engine that gates auto-annotations based on calibrated probability."""
 
     def __init__(self) -> None:
-        self.global_threshold = 0.95
+        self.global_threshold = 0.80
         self.class_thresholds: Dict[int, float] = {}
 
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initializes thresholds from config.
 
         Config schema:
-            global_threshold: 0.95
-            class_thresholds: { "class_id_1": 0.93, ... }
+            global_threshold: 0.80
+            class_thresholds: { "class_id_1": 0.80, ... }
         """
         self.global_threshold = config.get("global_threshold", self.global_threshold)
         

@@ -89,9 +89,8 @@ class TfidfOCRMatcher(BaseFusionStrategy):
             s_visual = res.similarity
             s_tfidf = tfidf_scores.get(cid, 0.0)
 
-            # Compute fused similarity
-            s_fused = (1.0 - self.boost_alpha) * s_visual + self.boost_alpha * s_tfidf
-            s_fused_clamped = min(1.0, max(0.0, float(s_fused)))
+            # Compute additive positive-only fusion: OCR text match adds boost to visual similarity without penalizing if OCR is empty or garbled
+            s_fused = min(1.0, max(0.0, float(s_visual + self.boost_alpha * s_tfidf)))
 
             meta = dict(res.metadata or {})
             meta["s_visual"] = s_visual
@@ -100,7 +99,7 @@ class TfidfOCRMatcher(BaseFusionStrategy):
             fused_dto = SearchResultDTO(
                 remapped_class_id=res.remapped_class_id,
                 old_class_id=res.old_class_id,
-                similarity=s_fused_clamped,
+                similarity=s_fused,
                 metadata=meta
             )
             fused_results.append(fused_dto)
