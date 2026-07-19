@@ -92,13 +92,13 @@ class AuditPipelineOrchestrator:
         annotations: List[PredictionDTO] = []
         hitl_queue: List[PredictionDTO] = []
 
-        # 3. Process each bounding box crop
+        # 3. Crop extraction & Quality Gate filter
+        valid_crops: List[CropDTO] = []
         for idx, box in enumerate(bboxes):
-            # Clamp coordinates to original image bounds
-            x1 = max(0, int(box.x1))
-            y1 = max(0, int(box.y1))
-            x2 = min(w_orig, int(box.x2))
-            y2 = min(h_orig, int(box.y2))
+            x1 = max(0, int(box.x1) if box.x1 > 1.0 else int(box.x1 * w_orig))
+            y1 = max(0, int(box.y1) if box.y1 > 1.0 else int(box.y1 * h_orig))
+            x2 = min(w_orig, int(box.x2) if box.x2 > 1.0 else int(box.x2 * w_orig))
+            y2 = min(h_orig, int(box.y2) if box.y2 > 1.0 else int(box.y2 * h_orig))
 
             crop_w = x2 - x1
             crop_h = y2 - y1
@@ -107,23 +107,17 @@ class AuditPipelineOrchestrator:
                 continue
 
             crop_img = img_bgr[y1:y2, x1:x2]
-            
-            # Encode crop back to bytes
             _, crop_bytes_arr = cv2.imencode(".jpg", crop_img)
             crop_bytes = crop_bytes_arr.tobytes()
 
-            # Construct CropDTO
-            blur_score = 0.0
-            aspect_ratio = float(crop_w) / float(crop_h)
             crop_dto = CropDTO(
                 crop_id=f"shelf_crop_{idx}",
                 image_bytes=crop_bytes,
                 bbox=box,
-                blur_score=blur_score,
-                aspect_ratio=aspect_ratio
+                blur_score=0.0,
+                aspect_ratio=float(crop_w) / float(crop_h) if crop_h > 0 else 1.0
             )
 
-            # 4. Bbox Quality Gate check
             valid, reject_reason = self.quality_gate.is_valid(crop_dto)
             if not valid:
                 pred = PredictionDTO(
@@ -136,10 +130,17 @@ class AuditPipelineOrchestrator:
                 hitl_queue.append(pred)
                 continue
 
-            # 5. Extract DINOv2 Embedding
-            embedding_dto = self.embedder.extract_dto(crop_dto)
+            valid_crops.append(crop_dto)
 
-            # 6. Query Retriever search index
+        if not valid_crops:
+            return annotations, hitl_queue
+
+        # 4. Batched DINOv2 Feature Extraction
+        embeddings = self.embedder.extract_batch_dto(valid_crops)
+
+        # 5. Retrieval, Gated OCR Fusion, Calibration & Decision Gating
+        for crop_dto, embedding_dto in zip(valid_crops, embeddings):
+            box = crop_dto.bbox
             matches = self.retriever.search_dto(embedding_dto, top_k=5)
             if not matches:
                 pred = PredictionDTO(
@@ -152,29 +153,25 @@ class AuditPipelineOrchestrator:
                 hitl_queue.append(pred)
                 continue
 
-            # 7. Gated OCR and late fusion
             top_visual_sim = matches[0].similarity
             fused_matches = matches
             ocr_text = None
 
-            # CPU OCR gating logic
             if top_visual_sim > 0.96:
-                # Fast path: bypass OCR for highly confident matches
                 pass
             elif top_visual_sim >= 0.85:
-                # Gated path: run OCR on uncertain matches
                 ocr_result = self.ocr.extract_text(crop_dto, timeout_ms=ocr_timeout_ms)
                 if ocr_result.text.strip():
                     ocr_text = ocr_result.text
                     fused_matches = self.fusion.fuse(matches, ocr_result)
             else:
-                # Reject path: bypass OCR for extremely low visual similarity matches
                 pred = PredictionDTO(
                     bbox=box,
                     predicted_class_id=matches[0].remapped_class_id,
                     confidence_probability=0.0,
                     automated=False,
-                    reject_reason="LOW_VISUAL_CONFIDENCE"
+                    reject_reason="LOW_VISUAL_CONFIDENCE",
+                    commercial_info=self._get_commercial_info(matches[0].remapped_class_id)
                 )
                 hitl_queue.append(pred)
                 continue

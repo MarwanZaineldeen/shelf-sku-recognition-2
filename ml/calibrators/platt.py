@@ -7,16 +7,16 @@ class PlattCalibrator(BaseCalibrator):
     """Calibrator mapping similarity scores to probabilities via Platt Scaling."""
 
     def __init__(self) -> None:
-        self.global_a = -12.4
-        self.global_b = 11.8
+        self.global_a = 15.0
+        self.global_b = -11.0
         self.class_coefficients: Dict[int, Tuple[float, float]] = {}
 
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initializes scaling parameters from config.
 
         Config schema:
-            global_coefs: { "a": -12.4, "b": 11.8 }
-            class_coefs: { "class_id_1": {"a": -10.2, "b": 9.5}, ... }
+            global_coefs: { "a": 15.0, "b": -11.0 }
+            class_coefs: { "class_id_1": {"a": 15.0, "b": -11.0}, ... }
         """
         global_coefs = config.get("global_coefs", {})
         self.global_a = global_coefs.get("a", self.global_a)
@@ -50,10 +50,10 @@ class PlattCalibrator(BaseCalibrator):
         """
         a, b = self.class_coefficients.get(class_id, (self.global_a, self.global_b))
         
-        # Calculate Platt Sigmoid: P = 1 / (1 + exp(a * similarity + b))
+        # Standard Platt Sigmoidal Logit: z = a * similarity + b
         z = a * similarity + b
         
         # Guard against overflow during exp
         z_clipped = np.clip(z, -50.0, 50.0)
-        probability = 1.0 / (1.0 + np.exp(z_clipped))
+        probability = 1.0 / (1.0 + np.exp(-z_clipped))
         return float(probability)

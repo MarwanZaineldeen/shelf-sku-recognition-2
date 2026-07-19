@@ -121,7 +121,7 @@ def startup_event():
 
     print("  Initializing Platt Calibrator...", flush=True)
     calibrator_plugin.initialize({
-        "global_coefs": {"a": -12.4, "b": 11.8}
+        "global_coefs": {"a": 15.0, "b": -11.0}
     })
     print("  Initializing TF-IDF OCR Matcher Strategy...", flush=True)
     fusion_plugin.initialize({
