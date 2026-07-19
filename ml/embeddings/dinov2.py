@@ -1,4 +1,5 @@
 import io
+import cv2
 from typing import List, Union, Dict, Any, Tuple
 import numpy as np
 import torch
@@ -28,6 +29,11 @@ class DINOv2Extractor(EmbeddingExtractor, BaseEmbedder):
         self.device = config.get("device", self.device)
         self.batch_size = config.get("batch_size", self.batch_size)
         
+        try:
+            torch.set_num_threads(1)
+        except Exception:
+            pass
+
         try:
             self.processor = AutoImageProcessor.from_pretrained(self.model_name)
             self.model = AutoModel.from_pretrained(self.model_name)
@@ -117,6 +123,12 @@ class DINOv2Extractor(EmbeddingExtractor, BaseEmbedder):
         """Extracts features for a batch of crops safely."""
         pil_images = []
         for crop in crops:
-            pil_images.append(Image.open(io.BytesIO(crop.image_bytes)).convert("RGB"))
+            arr = np.frombuffer(crop.image_bytes, np.uint8)
+            img_bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img_bgr is not None:
+                img_rgb = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
+                pil_images.append(img_rgb)
+        if not pil_images:
+            return []
         vectors = self.extract(pil_images)
         return [EmbeddingDTO(vector=v.tolist(), dimension=self.dimension) for v in vectors]
