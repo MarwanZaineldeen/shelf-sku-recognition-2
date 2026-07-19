@@ -45,6 +45,17 @@ class OCRResultDTO(BaseModel):
     confidence: float = Field(..., description="OCR model confidence score.")
 
 
+class CommercialSKUDTO(BaseModel):
+    """Data transfer object representing commercial FMCG product catalog metadata."""
+    project_sku_id: str = Field(..., description="Stable project SKU ID (e.g. TM_RAW_000).")
+    display_name: str = Field(..., description="Full commercial product title.")
+    brand: str = Field(..., description="Product brand name (e.g. Lipton).")
+    product_name: str = Field(..., description="Product line name (e.g. Green Tea).")
+    variant: str = Field(..., description="Product variant or flavor (e.g. Lemon).")
+    pack_count: str = Field(..., description="Pack count or weight (e.g. 50 tea bags).")
+    pack_type: str = Field(..., description="Packaging type (e.g. box, jar, bag).")
+
+
 class PredictionDTO(BaseModel):
     """Data transfer object representing the final auto-annotation outcome."""
     bbox: BBoxDTO = Field(..., description="Bounding box coordinates.")
@@ -53,6 +64,7 @@ class PredictionDTO(BaseModel):
     automated: bool = Field(..., description="True if safe to auto-annotate without human verification.")
     reject_reason: Optional[str] = Field(None, description="Reason for HITL routing (e.g. LOW_CONFIDENCE).")
     ocr_text: Optional[str] = Field(None, description="Extracted OCR text if performed.")
+    commercial_info: Optional[CommercialSKUDTO] = Field(None, description="Rich commercial SKU metadata.")
 
 
 # ==========================================

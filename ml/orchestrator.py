@@ -1,16 +1,26 @@
 import io
 import cv2
+import json
 import numpy as np
+from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional
 from ml.base import (
-    BaseDetector, BaseQualityGate, BaseEmbedder, BaseRetriever,
-    BaseOCR, BaseCalibrator, BaseFusionStrategy, BaseDecisionPolicy,
-    BBoxDTO, CropDTO, PredictionDTO
+    BaseDetector,
+    BaseEmbedder,
+    BaseRetriever,
+    BaseOCR,
+    BaseCalibrator,
+    BaseFusionStrategy,
+    BaseDecisionPolicy,
+    BaseQualityGate,
+    CropDTO,
+    PredictionDTO,
+    CommercialSKUDTO
 )
 
 
 class AuditPipelineOrchestrator:
-    """Core domain orchestrator executing the shelf audit process."""
+    """Master orchestrator executing complete shelf audit workflow using pluggable interfaces."""
 
     def __init__(
         self,
@@ -21,8 +31,9 @@ class AuditPipelineOrchestrator:
         ocr: BaseOCR,
         calibrator: BaseCalibrator,
         fusion: BaseFusionStrategy,
-        decision_policy: BaseDecisionPolicy
-    ) -> None:
+        decision_policy: BaseDecisionPolicy,
+        sku_mapping_path: str = "configs/sku_mapping.json"
+    ):
         self.detector = detector
         self.quality_gate = quality_gate
         self.embedder = embedder
@@ -31,6 +42,27 @@ class AuditPipelineOrchestrator:
         self.calibrator = calibrator
         self.fusion = fusion
         self.decision_policy = decision_policy
+
+        self.sku_mapping: Dict[str, Dict[str, Any]] = {}
+        if sku_mapping_path and Path(sku_mapping_path).exists():
+            with open(sku_mapping_path, "r", encoding="utf-8") as f:
+                self.sku_mapping = json.load(f).get("classes", {})
+
+    def _get_commercial_info(self, class_id: int) -> Optional[CommercialSKUDTO]:
+        cid_str = str(class_id)
+        if cid_str not in self.sku_mapping:
+            return None
+
+        info = self.sku_mapping[cid_str]
+        return CommercialSKUDTO(
+            project_sku_id=info.get("project_sku_id", f"TM_RAW_{class_id:03d}"),
+            display_name=info.get("display_name", f"SKU {class_id}"),
+            brand=info.get("brand", ""),
+            product_name=info.get("product_name", ""),
+            variant=info.get("variant", ""),
+            pack_count=info.get("pack_count", ""),
+            pack_type=info.get("pack_type", "")
+        )
 
     def process_shelf(
         self,
@@ -162,7 +194,8 @@ class AuditPipelineOrchestrator:
                 confidence_probability=probability,
                 automated=automated,
                 reject_reason=reject_reason,
-                ocr_text=ocr_text
+                ocr_text=ocr_text,
+                commercial_info=self._get_commercial_info(best_match.remapped_class_id)
             )
 
             if automated:

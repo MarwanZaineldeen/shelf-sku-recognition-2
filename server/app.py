@@ -23,13 +23,13 @@ from ml.retrieval.sqlite_registry import SQLiteGalleryStore
 from ml.retrieval.numpy_index import NumpyCosineIndex
 from ml.ocr.easy_ocr import EasyOCREngine
 from ml.calibrators.platt import PlattCalibrator
-from ml.fusion.lexicon_fusion import LexiconLateFusion
+from ml.fusion.tfidf_ocr_matcher import TfidfOCRMatcher
 from ml.decision.gated_policy import GatedAnnotationPolicy
 from ml.orchestrator import AuditPipelineOrchestrator
 
 from server.schemas import (
     AuditResponse, AnnotationOut, BBoxOut, HITLRecordOut,
-    HealthResponse, OnboardResponse
+    HealthResponse, OnboardResponse, CommercialSKUOut
 )
 
 config_path = workspace_root / "configs/retrieval_config.yaml"
@@ -76,7 +76,7 @@ def startup_event():
     retriever_plugin = NumpyCosineIndex(dimension=384)
     ocr_plugin = EasyOCREngine()
     calibrator_plugin = PlattCalibrator()
-    fusion_plugin = LexiconLateFusion()
+    fusion_plugin = TfidfOCRMatcher()
     decision_policy_plugin = GatedAnnotationPolicy()
     db_store_plugin = SQLiteGalleryStore()
 
@@ -123,11 +123,10 @@ def startup_event():
     calibrator_plugin.initialize({
         "global_coefs": {"a": -12.4, "b": 11.8}
     })
-
-    print("  Initializing Lexicon Late-Fusion Strategy...", flush=True)
+    print("  Initializing TF-IDF OCR Matcher Strategy...", flush=True)
     fusion_plugin.initialize({
-        "boost_alpha": 0.05,
-        "lexicons": lexicons
+        "boost_alpha": 0.15,
+        "gt_ocr_path": str(workspace_root / "configs/class_ocr_groundtruth.json")
     })
 
     print("  Initializing Gated Decision Policy...", flush=True)
@@ -212,6 +211,17 @@ async def audit_shelf(file: UploadFile = File(...)):
     # Format annotations list
     out_annotations = []
     for pred in annotations:
+        comm_out = None
+        if pred.commercial_info:
+            comm_out = CommercialSKUOut(
+                project_sku_id=pred.commercial_info.project_sku_id,
+                display_name=pred.commercial_info.display_name,
+                brand=pred.commercial_info.brand,
+                product_name=pred.commercial_info.product_name,
+                variant=pred.commercial_info.variant,
+                pack_count=pred.commercial_info.pack_count,
+                pack_type=pred.commercial_info.pack_type
+            )
         out_annotations.append(
             AnnotationOut(
                 bbox=BBoxOut(
@@ -220,13 +230,25 @@ async def audit_shelf(file: UploadFile = File(...)):
                 ),
                 class_id=pred.predicted_class_id,
                 confidence=pred.confidence_probability,
-                ocr_text=pred.ocr_text
+                ocr_text=pred.ocr_text,
+                commercial_sku=comm_out
             )
         )
 
     # Format HITL queue list
     out_hitl = []
     for pred in hitl_queue:
+        comm_out = None
+        if pred.commercial_info:
+            comm_out = CommercialSKUOut(
+                project_sku_id=pred.commercial_info.project_sku_id,
+                display_name=pred.commercial_info.display_name,
+                brand=pred.commercial_info.brand,
+                product_name=pred.commercial_info.product_name,
+                variant=pred.commercial_info.variant,
+                pack_count=pred.commercial_info.pack_count,
+                pack_type=pred.commercial_info.pack_type
+            )
         out_hitl.append(
             HITLRecordOut(
                 bbox=BBoxOut(
@@ -235,7 +257,8 @@ async def audit_shelf(file: UploadFile = File(...)):
                 ),
                 class_id=pred.predicted_class_id if pred.predicted_class_id != -1 else None,
                 confidence=pred.confidence_probability,
-                reject_reason=pred.reject_reason or "LOW_CONFIDENCE"
+                reject_reason=pred.reject_reason or "LOW_CONFIDENCE",
+                commercial_sku=comm_out
             )
         )
 

@@ -10,11 +10,22 @@ class BBoxOut(BaseModel):
     confidence: float
 
 
+class CommercialSKUOut(BaseModel):
+    project_sku_id: str
+    display_name: str
+    brand: str
+    product_name: str
+    variant: str
+    pack_count: str
+    pack_type: str
+
+
 class AnnotationOut(BaseModel):
     bbox: BBoxOut
     class_id: int
     confidence: float
     ocr_text: Optional[str] = None
+    commercial_sku: Optional[CommercialSKUOut] = None
 
 
 class HITLRecordOut(BaseModel):
@@ -22,6 +33,7 @@ class HITLRecordOut(BaseModel):
     class_id: Optional[int] = None
     confidence: float
     reject_reason: str
+    commercial_sku: Optional[CommercialSKUOut] = None
 
 
 class AuditResponse(BaseModel):
