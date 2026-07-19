@@ -1,0 +1,23 @@
+{
+  "0": ["green", "mint", "lipton"],
+  "1": ["green", "pure", "tea"],
+  "2": ["lemon", "25", "bags"],
+  "3": ["lemon", "50", "fifty"],
+  "4": ["lemon", "100", "hundred"],
+  "5": ["peach", "tea", "lipton"],
+  "6": ["yellow", "label", "black"],
+  "7": ["chamomile", "herbal", "infusion"],
+  "8": ["earl", "grey", "bergamot"],
+  "9": ["english", "breakfast", "strong"],
+  "10": ["lemon", "ginger", "herbal"],
+  "11": ["peppermint", "pure", "leaves"],
+  "12": ["rooibos", "red", "bush"],
+  "13": ["jasmine", "blossom", "green"],
+  "14": ["chai", "spice", "cinnamon"],
+  "15": ["darjeeling", "premium", "origin"],
+  "16": ["matcha", "ginger", "powder"],
+  "17": ["strawberry", "raspberry", "fruit"],
+  "18": ["apple", "cinnamon", "infusion"],
+  "19": ["blueberry", "pomegranate", "active"],
+  "20": ["green", "jasmine", "lipton"]
+}

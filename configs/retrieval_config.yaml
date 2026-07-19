@@ -1,0 +1,24 @@
+# Milestone 4 Retrieval Pipeline Configuration
+# Enforces reproducibility, batch loading, and calibration parameters.
+
+experiment:
+  dataset_version: "v1.5_clean"
+  split_version: "gt_clean"
+  random_seed: 42
+
+model:
+  name: "dinov2-small"
+  backbone: "facebook/dinov2-small"
+  batch_size: 128
+  device: "cuda"
+  image_size: 224
+  pin_memory: true
+  num_workers: 2
+
+retrieval:
+  top_k: 5
+  distance_metric: "cosine"
+
+evaluation:
+  bootstrap_iterations: 1000
+  target_precision: 0.95

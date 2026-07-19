@@ -1,0 +1,40 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Large Datasets & Archives
+data/
+data/raw/
+data/processed/
+Transmed Lipton - Dataset/
+eda_outputs/
+colab_package/
+*.zip
+*.tar
+*.gz
+*.pkl
+*.db
+*.db-journal
+*.db-wal
+
+# Model Weights & Caches
+runs/
+.cache/
+*.pt
+*.onnx
+*.engine
+
+# Environment & IDE
+.env
+.venv
+venv/
+env/
+.vscode/
+.idea/
+
+# Artifacts & Temporary outputs
+artifacts/
+scratch/
+reports/experiments/
