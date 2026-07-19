@@ -86,9 +86,9 @@ def startup_event():
     print("  Initializing SQLite Gallery Store...", flush=True)
     db_store_plugin.initialize({"db_path": db_path})
 
-    print("  Initializing YOLOv8 Detector...", flush=True)
+    print("  Initializing YOLOv8 Detector (SKU110K Class-Agnostic)...", flush=True)
     detector_plugin.initialize({
-        "weights_path": str(workspace_root / "runs/detect/yolo_baseline_50ep/weights/best.pt"),
+        "weights_path": str(workspace_root / "runs/detect/yolo8l_sku110k/yolov8l-sku110k.pt"),
         "confidence_threshold": 0.25,
         "imgsz": 640
     })

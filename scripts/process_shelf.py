@@ -70,7 +70,7 @@ def main():
     
     detector = YOLOv8Detector()
     detector.initialize({
-        "weights_path": str(workspace_root / "runs/detect/yolo_baseline_50ep/weights/best.pt"),
+        "weights_path": str(workspace_root / "runs/detect/yolo8l_sku110k/yolov8l-sku110k.pt"),
         "confidence_threshold": 0.25,
         "imgsz": 640
     })
