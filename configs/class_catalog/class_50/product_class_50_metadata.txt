@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 50
+Project SKU ID        : TM_RAW_050
+Commercial Display    : SKU 50
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton] DARMONY
+Extracted Crop Text   : Lipton] DARMONY
+==================================================

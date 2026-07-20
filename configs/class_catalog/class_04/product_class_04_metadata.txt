@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 4
+Project SKU ID        : TM_RAW_004
+Commercial Display    : Lipton Yellow Label Tea- 200 Tea Bags
+Brand                 : Lipton
+Product Name          : Yellow Label
+Variant / Flavor      : Tea
+Pack Count / Weight   : 200 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Yellow Label Tea 200 tea bags box UpI OFFER Lipton LABELI MeS; 200 TEA BILENIG WpKc Qealdty-Ac / U6 OFFER' aal YELLOW
+Extracted Crop Text   : UpI OFFER Lipton LABELI MeS; 200 TEA BILENIG WpKc Qealdty-Ac / U6 OFFER' aal YELLOW
+==================================================

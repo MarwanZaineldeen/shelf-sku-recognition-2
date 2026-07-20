@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 38
+Project SKU ID        : TM_RAW_038
+Commercial Display    : Lipton Black Tea Cardamom - 25 Tea Bags
+Brand                 : Lipton
+Product Name          : Black Tea
+Variant / Flavor      : Cardamom
+Pack Count / Weight   : 25 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Black Tea Cardamom 25 tea bags box OFFER' Lipton YELLOW TEA El~D Qelity . 000a LABEL
+Extracted Crop Text   : OFFER' Lipton YELLOW TEA El~D Qelity . 000a LABEL
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 55
+Project SKU ID        : TM_RAW_055
+Commercial Display    : Lipton Green Tea - 100 Tea Bags
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Unclear
+Pack Count / Weight   : 100 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Unclear 100 tea bags box 04i LL
+Extracted Crop Text   : 04i LL
+==================================================

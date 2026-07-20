@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 14
+Project SKU ID        : TM_RAW_014
+Commercial Display    : Lipton Herbal Infusion Lemon Ginger - 20 Tea Bags
+Brand                 : Lipton
+Product Name          : Herbal Infusion
+Variant / Flavor      : Lemon Ginger
+Pack Count / Weight   : 20 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Herbal Infusion Lemon Ginger 20 tea bags box FREE Lipton LEMON & GINGER Uuj 9 ugau 0420
+Extracted Crop Text   : FREE Lipton LEMON & GINGER Uuj 9 ugau 0420
+==================================================

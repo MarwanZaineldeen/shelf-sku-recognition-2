@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 59
+Project SKU ID        : TM_RAW_059
+Commercial Display    : Lipton Extra Strong Black Tea - 100 Tea Bags
+Brand                 : Lipton
+Product Name          : Black Tea
+Variant / Flavor      : Extra Strong
+Pack Count / Weight   : 100 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Black Tea Extra Strong 100 tea bags box Lipton PEACH MANGO BLACK TEA Wutm PlACH hen G 4ado
+Extracted Crop Text   : Lipton PEACH MANGO BLACK TEA Wutm PlACH hen G 4ado
+==================================================

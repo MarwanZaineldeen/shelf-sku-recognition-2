@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 47
+Project SKU ID        : TM_RAW_047
+Commercial Display    : Lipton Green Tea Mint
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Mint
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Mint  box Lcue Lipton GREEN TEA (s PURE
+Extracted Crop Text   : Lcue Lipton GREEN TEA (s PURE
+==================================================

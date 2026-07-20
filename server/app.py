@@ -49,6 +49,14 @@ static_dir = workspace_root / "server/static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+images_dir = workspace_root / "data/processed/yolo_remapped_clean/images/test"
+if images_dir.exists():
+    app.mount("/static/images", StaticFiles(directory=str(images_dir)), name="images")
+
+catalog_dir = workspace_root / "configs/class_catalog"
+if catalog_dir.exists():
+    app.mount("/static/catalog", StaticFiles(directory=str(catalog_dir)), name="catalog")
+
 @app.get("/")
 def get_dashboard():
     index_html = static_dir / "index.html"
@@ -154,7 +162,7 @@ def startup_event():
 
     print("  Initializing Gated Decision Policy...", flush=True)
     decision_policy_plugin.initialize({
-        "global_threshold": 0.95
+        "global_threshold": 0.80
     })
 
     # 5. Assemble orchestrator

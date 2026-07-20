@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 44
+Project SKU ID        : TM_RAW_044
+Commercial Display    : Lipton Yellow Label - 800 g
+Brand                 : Lipton
+Product Name          : Yellow Label
+Variant / Flavor      : 
+Pack Count / Weight   : 800 g
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Yellow Label  800 g box Lipton Yeiiowlabei Ir
+Extracted Crop Text   : Lipton Yeiiowlabei Ir
+==================================================

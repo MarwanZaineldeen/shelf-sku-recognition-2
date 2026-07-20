@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 60
+Project SKU ID        : TM_RAW_060
+Commercial Display    : Lipton Harmony Green Tea Feel Good Selection - 20 Tea Bags
+Brand                 : Lipton
+Product Name          : Harmony Green Tea
+Variant / Flavor      : Feel Good Selection
+Pack Count / Weight   : 20 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Harmony Green Tea Feel Good Selection 20 tea bags box Vanilla CARAHEL LAC [pton
+Extracted Crop Text   : Vanilla CARAHEL LAC [pton
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 9
+Project SKU ID        : TM_RAW_009
+Commercial Display    : Brooke Bond Red Label- Bag
+Brand                 : Brooke Bond
+Product Name          : Red Label
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : Bag
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Brooke Bond Red Label   Bag 3 S8g G STRONG L 05 Muncanu
+Extracted Crop Text   : 3 S8g G STRONG L 05 Muncanu
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 63
+Project SKU ID        : TM_RAW_063
+Commercial Display    : Lipton Herbal Infusion Quiet Moments
+Brand                 : Lipton
+Product Name          : Herbal Infusion
+Variant / Flavor      : Quiet Moments
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Herbal Infusion Quiet Moments  box VAAUJE Ugiwl cljonll aolall ul
+Extracted Crop Text   : VAAUJE Ugiwl cljonll aolall ul
+==================================================

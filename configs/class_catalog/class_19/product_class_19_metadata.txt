@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 19
+Project SKU ID        : TM_RAW_019
+Commercial Display    : Lipton Earl Grey
+Brand                 : Lipton
+Product Name          : Black Tea
+Variant / Flavor      : Earl Grey
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Black Tea Earl Grey  box Lipton EARL GREY
+Extracted Crop Text   : Lipton EARL GREY
+==================================================

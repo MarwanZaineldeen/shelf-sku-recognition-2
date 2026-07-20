@@ -22,7 +22,11 @@ colab_package/
 # Model Weights & Caches
 runs/
 .cache/
+configs/weights/
 *.pt
+*.safetensors
+*.index
+*.faiss
 *.onnx
 *.engine
 

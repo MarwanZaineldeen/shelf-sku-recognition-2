@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 51
+Project SKU ID        : TM_RAW_051
+Commercial Display    : SKU 51
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: [ [ L
+Extracted Crop Text   : [ [ L
+==================================================

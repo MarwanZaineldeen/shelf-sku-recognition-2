@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 21
+Project SKU ID        : TM_RAW_021
+Commercial Display    : SKU 21
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: NEW Taste Lipton EN $ :54 BREAKFAST 025
+Extracted Crop Text   : NEW Taste Lipton EN $ :54 BREAKFAST 025
+==================================================

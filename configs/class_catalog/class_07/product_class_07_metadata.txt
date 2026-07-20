@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 7
+Project SKU ID        : TM_RAW_007
+Commercial Display    : Lipton Yellow Label- Box
+Brand                 : Lipton
+Product Name          : Yellow Label
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : Box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Yellow Label   Box Ugi] aolall Eljanll
+Extracted Crop Text   : Ugi] aolall Eljanll
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 40
+Project SKU ID        : TM_RAW_040
+Commercial Display    : SKU 40
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: STRONG 5oona Red cabel
+Extracted Crop Text   : STRONG 5oona Red cabel
+==================================================

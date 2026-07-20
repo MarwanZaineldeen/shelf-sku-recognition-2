@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 6
+Project SKU ID        : TM_RAW_006
+Commercial Display    : Lipton Yellow Label Tea- Bag
+Brand                 : Lipton
+Product Name          : Yellow Label
+Variant / Flavor      : Tea
+Pack Count / Weight   : 
+Packaging Type        : bag
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Yellow Label Tea  bag Xipton LABEL TEA YELLOW 1eooa
+Extracted Crop Text   : Xipton LABEL TEA YELLOW 1eooa
+==================================================

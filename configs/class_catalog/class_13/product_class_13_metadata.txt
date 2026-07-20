@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 13
+Project SKU ID        : TM_RAW_013
+Commercial Display    : Brooke Bond Red Label- Jar
+Brand                 : Brooke Bond
+Product Name          : Red Label
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : Jar
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Brooke Bond Red Label   Jar
+Extracted Crop Text   : 
+==================================================

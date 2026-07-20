@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 56
+Project SKU ID        : TM_RAW_056
+Commercial Display    : Lipton Green Tea Lemon - 100 Tea Bags
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Lemon
+Pack Count / Weight   : 100 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Lemon 100 tea bags box 6
+Extracted Crop Text   : 6
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 43
+Project SKU ID        : TM_RAW_043
+Commercial Display    : Lipton Green Tea Lemon
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Lemon
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Lemon  box Lipton YELLOW LABEL
+Extracted Crop Text   : Lipton YELLOW LABEL
+==================================================

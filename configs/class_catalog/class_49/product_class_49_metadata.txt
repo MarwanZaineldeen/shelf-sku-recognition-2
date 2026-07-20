@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 49
+Project SKU ID        : TM_RAW_049
+Commercial Display    : Lipton Yellow Label - unkown g
+Brand                 : Lipton
+Product Name          : Yellow Label
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Yellow Label   box Lipton Extra Strong I0r
+Extracted Crop Text   : Lipton Extra Strong I0r
+==================================================

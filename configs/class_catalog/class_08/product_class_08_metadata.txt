@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 8
+Project SKU ID        : TM_RAW_008
+Commercial Display    : Brooke Bond Red Label- 100 Tea Bags
+Brand                 : Brooke Bond
+Product Name          : Red Label
+Variant / Flavor      : 
+Pack Count / Weight   : 100 tea bags
+Packaging Type        : Box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Brooke Bond Red Label  100 tea bags Box Gace STRONG Periect blcnd tor irong Ieanalc indcoleur 100
+Extracted Crop Text   : Gace STRONG Periect blcnd tor irong Ieanalc indcoleur 100
+==================================================

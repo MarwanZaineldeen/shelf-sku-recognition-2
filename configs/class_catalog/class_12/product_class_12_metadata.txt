@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 12
+Project SKU ID        : TM_RAW_012
+Commercial Display    : Lipton Green Tea Mint
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Mint
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Mint  box VALUE . acK Lipton NATURAL GREEN TEA OMINT 1OOmuns
+Extracted Crop Text   : VALUE . acK Lipton NATURAL GREEN TEA OMINT 1OOmuns
+==================================================

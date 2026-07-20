@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 31
+Project SKU ID        : TM_RAW_031
+Commercial Display    : Lipton Yellow Label - 400 g
+Brand                 : Lipton
+Product Name          : Yellow Label
+Variant / Flavor      : 
+Pack Count / Weight   : 400 g
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Yellow Label  400 g box 23 93 Ted) Eabee STRONG
+Extracted Crop Text   : 23 93 Ted) Eabee STRONG
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 10
+Project SKU ID        : TM_RAW_010
+Commercial Display    : Brooke Bond Red Label- 800 g
+Brand                 : Brooke Bond
+Product Name          : Red Label
+Variant / Flavor      : 
+Pack Count / Weight   : 800 g
+Packaging Type        : Box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Brooke Bond Red Label  800 g Box jQ
+Extracted Crop Text   : jQ
+==================================================

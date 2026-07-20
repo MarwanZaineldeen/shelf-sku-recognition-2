@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 45
+Project SKU ID        : TM_RAW_045
+Commercial Display    : Brooke Bond Red Label - 400 g
+Brand                 : Brooke Bond
+Product Name          : Red Label
+Variant / Flavor      : 
+Pack Count / Weight   : 400 g
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Brooke Bond Red Label  400 g box Lipton GREENTEA AHNT 020
+Extracted Crop Text   : Lipton GREENTEA AHNT 020
+==================================================

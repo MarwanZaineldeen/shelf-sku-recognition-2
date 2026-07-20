@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 29
+Project SKU ID        : TM_RAW_029
+Commercial Display    : Lipton Green Tea Mint - 50 Tea Bags
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Mint
+Pack Count / Weight   : 50 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Mint 50 tea bags box VACHLoQ Lipton GREEN TEA PURE
+Extracted Crop Text   : VACHLoQ Lipton GREEN TEA PURE
+==================================================

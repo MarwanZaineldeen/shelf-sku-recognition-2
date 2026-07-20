@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 11
+Project SKU ID        : TM_RAW_011
+Commercial Display    : Lipton Extra Strong - 25 Tea Bags
+Brand                 : Lipton
+Product Name          : Extra Strong
+Variant / Flavor      : 
+Pack Count / Weight   : 25 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Extra Strong  25 tea bags box Extra Strong Mipton]
+Extracted Crop Text   : Extra Strong Mipton]
+==================================================

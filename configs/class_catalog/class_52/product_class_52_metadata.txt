@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 52
+Project SKU ID        : TM_RAW_052
+Commercial Display    : SKU 52
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: FREE Lipton SWEET NIGHTS ooLAJI UJY_DI 02033
+Extracted Crop Text   : FREE Lipton SWEET NIGHTS ooLAJI UJY_DI 02033
+==================================================

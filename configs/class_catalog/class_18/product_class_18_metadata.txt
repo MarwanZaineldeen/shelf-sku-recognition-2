@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 18
+Project SKU ID        : TM_RAW_018
+Commercial Display    : Lipton Herbal Infusion Mint - 20 Tea Bags
+Brand                 : Lipton
+Product Name          : Herbal Infusion
+Variant / Flavor      : Mint
+Pack Count / Weight   : 20 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Herbal Infusion Mint 20 tea bags box FREE Lipton MiNT 020.= Eliqi
+Extracted Crop Text   : FREE Lipton MiNT 020.= Eliqi
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 37
+Project SKU ID        : TM_RAW_037
+Commercial Display    : SKU 37
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: pnici Ugiyl Lusi D U9 ' Ni 060 ul
+Extracted Crop Text   : pnici Ugiyl Lusi D U9 ' Ni 060 ul
+==================================================

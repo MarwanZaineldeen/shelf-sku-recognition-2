@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 36
+Project SKU ID        : TM_RAW_036
+Commercial Display    : Lipton Green Tea Pure
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Pure
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Pure  box HM 0Nj IIca [iron]
+Extracted Crop Text   : HM 0Nj IIca [iron]
+==================================================

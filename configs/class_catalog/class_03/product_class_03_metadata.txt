@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 3
+Project SKU ID        : TM_RAW_003
+Commercial Display    : Lipton Yellow Label Tea- 100 Tea Bags
+Brand                 : Lipton
+Product Name          : Yellow Label
+Variant / Flavor      : Tea
+Pack Count / Weight   : 100 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Yellow Label Tea 100 tea bags box 8FFE: a 0j7J Lipton NEW RiSH ) YELLOW LABEL 0 LAL
+Extracted Crop Text   : 8FFE: a 0j7J Lipton NEW RiSH ) YELLOW LABEL 0 LAL
+==================================================

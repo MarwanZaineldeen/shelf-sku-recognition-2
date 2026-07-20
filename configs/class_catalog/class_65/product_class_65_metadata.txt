@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 65
+Project SKU ID        : TM_RAW_065
+Commercial Display    : Brooke Bond Red Label - 200 Tea Bags
+Brand                 : Brooke Bond
+Product Name          : Red Label
+Variant / Flavor      : 
+Pack Count / Weight   : 200 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Brooke Bond Red Label  200 tea bags box (Priet Lipton PURE 062505 15.95 GREEN TEA C0 etta W "nfrdat
+Extracted Crop Text   : (Priet Lipton PURE 062505 15.95 GREEN TEA C0 etta W "nfrdat
+==================================================

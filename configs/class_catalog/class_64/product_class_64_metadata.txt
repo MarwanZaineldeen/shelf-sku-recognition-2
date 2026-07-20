@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 64
+Project SKU ID        : TM_RAW_064
+Commercial Display    : Lipton Matcha Green Tea
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Matcha
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Matcha  box ValuE Pack Lipton NATURAL GREEN TEA 'URE IOOwwa
+Extracted Crop Text   : ValuE Pack Lipton NATURAL GREEN TEA 'URE IOOwwa
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 1
+Project SKU ID        : TM_RAW_001
+Commercial Display    : Lipton Black Tea Mint - 25 Tea Bags
+Brand                 : Lipton
+Product Name          : Black Tea
+Variant / Flavor      : Mint
+Pack Count / Weight   : 25 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Black Tea Mint 25 tea bags box Qipton] [HINT
+Extracted Crop Text   : Qipton] [HINT
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 27
+Project SKU ID        : TM_RAW_027
+Commercial Display    : Lipton Green Tea Pure
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Pure
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Pure  box [Lipton YELLOW LABEL Qotty~6i TEA
+Extracted Crop Text   : [Lipton YELLOW LABEL Qotty~6i TEA
+==================================================

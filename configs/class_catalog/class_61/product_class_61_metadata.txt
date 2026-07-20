@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 61
+Project SKU ID        : TM_RAW_061
+Commercial Display    : Lipton After Meal - 20 Tea Bags
+Brand                 : Lipton
+Product Name          : After Meal
+Variant / Flavor      : 
+Pack Count / Weight   : 20 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton After Meal  20 tea bags box Cups Lipton GREEN TEA ~EMON 095033
+Extracted Crop Text   : Cups Lipton GREEN TEA ~EMON 095033
+==================================================

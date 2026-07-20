@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 23
+Project SKU ID        : TM_RAW_023
+Commercial Display    : SKU 23
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton] GREEN TEA IEHON nad
+Extracted Crop Text   : Lipton] GREEN TEA IEHON nad
+==================================================

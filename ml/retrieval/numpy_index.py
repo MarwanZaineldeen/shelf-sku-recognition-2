@@ -26,8 +26,10 @@ class NumpyCosineIndex(VectorIndex, BaseRetriever):
             store.shutdown()
             
             if embeddings:
-                # Convert list of EmbeddingDTO to numpy matrix
-                vectors = np.array([e.vector for e in embeddings], dtype=np.float32)
+                # Convert list of EmbeddingDTO to pre-allocated numpy matrix
+                vectors = np.empty((len(embeddings), self.dimension), dtype=np.float32)
+                for i, e in enumerate(embeddings):
+                    vectors[i] = e.vector
                 self.add(vectors, metadata)
 
     def health_check(self) -> Tuple[bool, str]:
@@ -64,20 +66,20 @@ class NumpyCosineIndex(VectorIndex, BaseRetriever):
                 f"Count mismatch. Got {vectors.shape[0]} vectors, but {len(metadata)} metadata records."
             )
 
-        # Enforce copy and convert to float32
-        vectors_clean = vectors.astype(np.float32)
+        # Enforce float32
+        if vectors.dtype != np.float32:
+            vectors = vectors.astype(np.float32)
 
-        # L2-normalize vectors to make cosine similarity a simple dot product
-        norms = np.linalg.norm(vectors_clean, axis=1, keepdims=True)
-        # Avoid division by zero
+        # In-place L2 normalization
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         norms[norms == 0] = 1e-12
-        vectors_normalized = vectors_clean / norms
+        vectors /= norms
 
         if self.gallery_vectors is None:
-            self.gallery_vectors = vectors_normalized
+            self.gallery_vectors = vectors
             self.metadata = list(metadata)
         else:
-            self.gallery_vectors = np.vstack([self.gallery_vectors, vectors_normalized])
+            self.gallery_vectors = np.vstack([self.gallery_vectors, vectors])
             self.metadata.extend(metadata)
 
     def search(self, query_vectors: np.ndarray, top_k: int = 5) -> Tuple[np.ndarray, np.ndarray]:

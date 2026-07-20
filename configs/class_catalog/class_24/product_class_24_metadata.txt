@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 24
+Project SKU ID        : TM_RAW_024
+Commercial Display    : Lipton English Breakfast
+Brand                 : Lipton
+Product Name          : Black Tea
+Variant / Flavor      : English Breakfast
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Black Tea English Breakfast  box #cuer Lipton GREEN TEA PURE 050
+Extracted Crop Text   : #cuer Lipton GREEN TEA PURE 050
+==================================================

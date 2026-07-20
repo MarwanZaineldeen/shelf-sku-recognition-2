@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 28
+Project SKU ID        : TM_RAW_028
+Commercial Display    : Lipton Green Tea Mint - 50 Tea Bags
+Brand                 : Lipton
+Product Name          : Green Tea
+Variant / Flavor      : Mint
+Pack Count / Weight   : 50 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Green Tea Mint 50 tea bags box 4009} Lipton] LABEL YELLOW TEA
+Extracted Crop Text   : 4009} Lipton] LABEL YELLOW TEA
+==================================================

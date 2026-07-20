@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 16
+Project SKU ID        : TM_RAW_016
+Commercial Display    : Lipton Herbal Infusion Chamomile - 20 Tea Bags
+Brand                 : Lipton
+Product Name          : Herbal Infusion
+Variant / Flavor      : Chamomile
+Pack Count / Weight   : 20 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Herbal Infusion Chamomile 20 tea bags box FrEE Lipton CHAMOMILE KERBAL INfusiof 2 jg L 620 =
+Extracted Crop Text   : FrEE Lipton CHAMOMILE KERBAL INfusiof 2 jg L 620 =
+==================================================

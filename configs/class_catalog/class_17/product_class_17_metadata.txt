@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 17
+Project SKU ID        : TM_RAW_017
+Commercial Display    : Lipton Herbal Infusion Hibiscus - 20 Tea Bags
+Brand                 : Lipton
+Product Name          : Herbal Infusion
+Variant / Flavor      : Hibiscus
+Pack Count / Weight   : 20 tea bags
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Herbal Infusion Hibiscus 20 tea bags box Friee Lipton HIBISCUS d1SS 0201=3
+Extracted Crop Text   : Friee Lipton HIBISCUS d1SS 0201=3
+==================================================

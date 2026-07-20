@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 48
+Project SKU ID        : TM_RAW_048
+Commercial Display    : Brooke Bond Red Label - 1600 g Bag
+Brand                 : Brooke Bond
+Product Name          : Red Label
+Variant / Flavor      : 
+Pack Count / Weight   : 1600 g
+Packaging Type        : Bag
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Brooke Bond Red Label  1600 g Bag UPKc 464 LpL 84u UL MLMM =
+Extracted Crop Text   : UPKc 464 LpL 84u UL MLMM =
+==================================================

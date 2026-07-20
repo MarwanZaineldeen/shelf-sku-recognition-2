@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 62
+Project SKU ID        : TM_RAW_062
+Commercial Display    : Lipton Herbal Infusion Sweet Nights
+Brand                 : Lipton
+Product Name          : Herbal Infusion
+Variant / Flavor      : Sweet Nights
+Pack Count / Weight   : 
+Packaging Type        : box
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Lipton Herbal Infusion Sweet Nights  box KA Ctfor Lipton TEA RJeRiA YELLOW LABEL {inEs
+Extracted Crop Text   : KA Ctfor Lipton TEA RJeRiA YELLOW LABEL {inEs
+==================================================

@@ -1,0 +1,18 @@
+==================================================
+COMMERCIAL SKU METADATA CATALOG PROFILE
+==================================================
+Training Class ID     : 53
+Project SKU ID        : TM_RAW_053
+Commercial Display    : SKU 53
+Brand                 : 
+Product Name          : 
+Variant / Flavor      : 
+Pack Count / Weight   : 
+Packaging Type        : 
+
+==================================================
+PRECALCULATED GROUND-TRUTH OCR TEXT
+==================================================
+Canonical Full Profile: Free Lipton QUiET MOMENTS ajlOlbJJ 020e=
+Extracted Crop Text   : Free Lipton QUiET MOMENTS ajlOlbJJ 020e=
+==================================================
