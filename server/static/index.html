@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=3.0">
 </head>
 <body class="dark-theme">
     <!-- Header Navbar -->
@@ -125,9 +125,10 @@
                     <div class="panel-header">
                         <h3><i class="fa-solid fa-crosshairs"></i> Shelf Product Bounding Box Overlay</h3>
                         <div class="legend-group">
-                            <span class="legend-item"><span class="legend-dot green"></span> Automated Match ($P \ge 80\%$)</span>
-                            <span class="legend-item"><span class="legend-dot red"></span> HITL Queue Match ($P < 80\%$)</span>
+                            <span class="legend-item"><span class="legend-dot green"></span> Automated Match (P &ge; 80%)</span>
+                            <span class="legend-item"><span class="legend-dot red"></span> HITL Queue Match (P &lt; 80%)</span>
                         </div>
+                        <button id="btn-export-txt" class="btn btn-emerald btn-sm" style="margin-left:auto;"><i class="fa-solid fa-file-arrow-down"></i> Export Audit (.txt)</button>
                     </div>
                     <div class="canvas-wrapper" id="canvas-wrapper">
                         <img id="shelf-base-img" src="" alt="Shelf Image" class="shelf-img-hidden">
@@ -177,24 +178,34 @@
                             </div>
 
                             <div class="gauge-card">
-                                <span class="gauge-title">DINOv3 Visual Sim ($S_{\text{vis}}$)</span>
+                                <span class="gauge-title">DINOv3 Visual Similarity</span>
                                 <span class="gauge-value highlight-cyan" id="gauge-vis">0.9165</span>
                                 <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-cyan" id="bar-vis" style="width:91%;"></div></div>
                             </div>
                         </div>
 
+                        <!-- Qwen2-VL Reranker Decision Card -->
+                        <div class="glass-panel" id="inspector-vlm-card" style="margin-top:12px;padding:12px;border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.08);border-radius:8px;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <span style="font-weight:700;color:#f59e0b;font-size:12px;"><i class="fa-solid fa-brain"></i> Qwen2-VL Reranker Decision</span>
+                                <span class="badge badge-amber" id="inspector-vlm-status">VLM Verified</span>
+                            </div>
+                            <div style="font-size:12px;margin-top:6px;color:#f8fafc;" id="inspector-vlm-text">Selected Top Candidate with zero-shot text & branding verification</div>
+                        </div>
+
                         <!-- Top-5 Candidates Table -->
                         <div class="top5-candidates-section">
-                            <h4><i class="fa-solid fa-list-ol"></i> Top-5 Generated Candidates</h4>
+                            <h4><i class="fa-solid fa-list-ol"></i> Top-5 Class-Unique Candidates</h4>
                             <div class="table-responsive">
                                 <table class="candidates-table">
                                     <thead>
                                         <tr>
                                             <th>Rank</th>
+                                            <th>Exemplar</th>
                                             <th>Class</th>
                                             <th>Commercial SKU Title</th>
-                                            <th>Visual Sim ($S_{\text{vis}}$)</th>
-                                            <th>Prob ($P$)</th>
+                                            <th>Visual Similarity</th>
+                                            <th>Probability</th>
                                         </tr>
                                     </thead>
                                     <tbody id="top5-candidates-tbody">
@@ -219,17 +230,17 @@
             <div class="glass-panel section-panel">
                 <div class="panel-header">
                     <h2><i class="fa-solid fa-user-check"></i> Human-in-the-Loop (HITL) Audit Review Queue</h2>
-                    <p class="panel-desc">Review low-confidence predictions ($P < 80\%$) and unseen product crops. Approving or correcting crops automatically upserts feature embeddings into the active continual gallery!</p>
+                    <p class="panel-desc">Review low-confidence predictions (Confidence &lt; 80%) and unseen product crops. Approving or correcting crops automatically logs feedback for active learning curation!</p>
                 </div>
                 <div class="table-responsive">
                     <table class="hitl-queue-table">
                         <thead>
                             <tr>
                                 <th>Crop Preview</th>
-                                <th>Crop ID</th>
+                                <th>Crop ID & Details</th>
                                 <th>Top Candidate Prediction</th>
-                                <th>Visual Sim ($S_{\text{vis}}$)</th>
-                                <th>Calibrated Prob ($P$)</th>
+                                <th>Visual Similarity</th>
+                                <th>Calibrated Prob</th>
                                 <th>Reject Reason</th>
                                 <th>Actions</th>
                             </tr>
@@ -278,21 +289,21 @@
                     </div>
 
                     <div class="latency-card glass-panel">
-                        <h3>Stage 3: DINOv2 Feature Extraction</h3>
+                        <h3>Stage 3: DINOv3 Feature Extraction</h3>
                         <span class="latency-val">7,956.1 ms (48.8 ms/facing)</span>
-                        <p>384-D L2-normalized visual embedding extraction.</p>
+                        <p>768-D L2-normalized visual embedding extraction.</p>
                     </div>
 
                     <div class="latency-card glass-panel">
                         <h3>Stage 4: Vector Retrieval</h3>
                         <span class="latency-val">182.0 ms (1.1 ms/facing)</span>
-                        <p>2-Layer SQLite & Cosine index top-K candidate search.</p>
+                        <p>SQLite & NumPy Cosine Index Class-Unique Top-K Search.</p>
                     </div>
 
                     <div class="latency-card glass-panel">
-                        <h3>Stage 5: Gated EasyOCR & TF-IDF</h3>
-                        <span class="latency-val">1,866.6 ms (11.4 ms/facing)</span>
-                        <p>CPU-gated text parsing & character 3-5 n-gram matcher.</p>
+                        <h3>Stage 5: Qwen2-VL Reranker</h3>
+                        <span class="latency-val">350.0 ms (2.1 ms/facing)</span>
+                        <p>Zero-shot VLM packaging text & variant verification.</p>
                     </div>
 
                     <div class="latency-card glass-panel">
@@ -337,6 +348,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=4.0"></script>
 </body>
 </html>

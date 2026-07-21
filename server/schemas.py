@@ -24,6 +24,9 @@ class CandidateOut(BaseModel):
     class_id: int
     display_name: str
     similarity: float
+    vlm_selected: Optional[bool] = False
+    s_fused: Optional[float] = None
+    exemplar_url: Optional[str] = None
 
 
 class AnnotationOut(BaseModel):
@@ -34,6 +37,8 @@ class AnnotationOut(BaseModel):
     crop_data_url: Optional[str] = None
     parent_image_name: Optional[str] = None
     ocr_text: Optional[str] = None
+    vlm_verified: Optional[bool] = None
+    vlm_reason: Optional[str] = None
     commercial_sku: Optional[CommercialSKUOut] = None
 
 
@@ -46,6 +51,8 @@ class HITLRecordOut(BaseModel):
     reject_reason: str
     crop_data_url: Optional[str] = None
     parent_image_name: Optional[str] = None
+    vlm_verified: Optional[bool] = None
+    vlm_reason: Optional[str] = None
     commercial_sku: Optional[CommercialSKUOut] = None
     top5_candidates: Optional[List[CandidateOut]] = None
 
@@ -53,6 +60,7 @@ class HITLRecordOut(BaseModel):
 class AuditResponse(BaseModel):
     image_name: str
     parent_image_data_url: Optional[str] = None
+    processing_time_ms: float = 0.0
     annotations: List[AnnotationOut]
     hitl_queue: List[HITLRecordOut]
 

@@ -80,10 +80,21 @@ def get_app_js():
 
 @app.get("/api/catalog")
 def get_catalog():
-    sku_mapping_path = workspace_root / "configs/sku_mapping.json"
-    if sku_mapping_path.exists():
-        with open(sku_mapping_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+    for mp in ["configs/sku_mapping_v2.json", "c:/Users/asusd/Desktop/sku_mapping_v2.json", "configs/sku_mapping.json"]:
+        p = workspace_root / mp if not mp.startswith("c:") else Path(mp)
+        if p.exists():
+            with open(p, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                raw_classes = data.get("classes", {})
+                # Key catalog cleanly by training_class_id
+                by_training_id = {}
+                for k, info in raw_classes.items():
+                    t_id = info.get("training_class_id")
+                    if t_id is not None:
+                        by_training_id[str(t_id)] = info
+                    else:
+                        by_training_id[str(k)] = info
+                return {"classes": by_training_id}
     return {"classes": {}}
 
 # Global orchestrator and registry storage references
@@ -239,6 +250,9 @@ async def audit_shelf(file: UploadFile = File(...)):
             detail="Service not fully loaded."
         )
 
+    import time
+    t0 = time.perf_counter()
+
     try:
         image_bytes = await file.read()
         annotations, hitl_queue = orchestrator.process_shelf(image_bytes, ocr_timeout_ms=300)
@@ -248,12 +262,14 @@ async def audit_shelf(file: UploadFile = File(...)):
             detail=f"Shelf audit failed: {str(e)}"
         )
 
+    proc_time_ms = (time.perf_counter() - t0) * 1000.0
+
     import base64
     parent_b64 = base64.b64encode(image_bytes).decode("utf-8")
     parent_data_url = f"data:image/jpeg;base64,{parent_b64}"
     filename = file.filename or "uploaded_shelf.jpg"
 
-    return _format_audit_response(filename, parent_data_url, annotations, hitl_queue)
+    return _format_audit_response(filename, parent_data_url, annotations, hitl_queue, proc_time_ms)
 
 
 @app.get("/v1/audit/sample", response_model=AuditResponse)
@@ -270,19 +286,24 @@ def audit_sample():
         else:
             raise HTTPException(status_code=404, detail="No sample test image found.")
 
+    import time
+    t0 = time.perf_counter()
+
     with open(sample_path, "rb") as f:
         img_bytes = f.read()
 
     annotations, hitl_queue = orchestrator.process_shelf(img_bytes, ocr_timeout_ms=300)
 
+    proc_time_ms = (time.perf_counter() - t0) * 1000.0
+
     import base64
     parent_b64 = base64.b64encode(img_bytes).decode("utf-8")
     parent_data_url = f"data:image/jpeg;base64,{parent_b64}"
 
-    return _format_audit_response(sample_path.name, parent_data_url, annotations, hitl_queue)
+    return _format_audit_response(sample_path.name, parent_data_url, annotations, hitl_queue, proc_time_ms)
 
 
-def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue) -> AuditResponse:
+def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue, proc_time_ms: float = 0.0) -> AuditResponse:
     out_annotations = []
     for pred in annotations:
         comm_out = None
@@ -299,7 +320,19 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
         
         top5_out = None
         if pred.top5_candidates:
-            top5_out = [CandidateOut(class_id=c["class_id"], display_name=c["display_name"], similarity=c["similarity"]) for c in pred.top5_candidates]
+            top5_out = [
+                CandidateOut(
+                    class_id=c["class_id"],
+                    display_name=c["display_name"],
+                    similarity=float(c.get("similarity", 0.0)),
+                    vlm_selected=bool(c.get("qwen2_vl_verified", False)),
+                    s_fused=float(c["s_fused"]) if "s_fused" in c else None,
+                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}")
+                )
+                for c in pred.top5_candidates
+            ]
+
+        is_vlm = True if (pred.ocr_text and "VLM" in pred.ocr_text) else False
 
         out_annotations.append(
             AnnotationOut(
@@ -310,6 +343,8 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                 crop_data_url=pred.crop_data_url,
                 parent_image_name=filename,
                 ocr_text=pred.ocr_text,
+                vlm_verified=is_vlm,
+                vlm_reason=pred.ocr_text if is_vlm else None,
                 commercial_sku=comm_out
             )
         )
@@ -330,7 +365,19 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
 
         top5_out = None
         if pred.top5_candidates:
-            top5_out = [CandidateOut(class_id=c["class_id"], display_name=c["display_name"], similarity=c["similarity"]) for c in pred.top5_candidates]
+            top5_out = [
+                CandidateOut(
+                    class_id=c["class_id"],
+                    display_name=c["display_name"],
+                    similarity=float(c.get("similarity", 0.0)),
+                    vlm_selected=bool(c.get("qwen2_vl_verified", False)),
+                    s_fused=float(c["s_fused"]) if "s_fused" in c else None,
+                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}")
+                )
+                for c in pred.top5_candidates
+            ]
+
+        is_vlm = True if (pred.ocr_text and "VLM" in pred.ocr_text) else False
 
         out_hitl.append(
             HITLRecordOut(
@@ -342,6 +389,8 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                 reject_reason=pred.reject_reason or "LOW_CONFIDENCE",
                 crop_data_url=pred.crop_data_url,
                 parent_image_name=filename,
+                vlm_verified=is_vlm,
+                vlm_reason=pred.ocr_text if is_vlm else None,
                 commercial_sku=comm_out,
                 top5_candidates=top5_out
             )
@@ -350,6 +399,7 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
     return AuditResponse(
         image_name=filename,
         parent_image_data_url=parent_data_url,
+        processing_time_ms=proc_time_ms,
         annotations=out_annotations,
         hitl_queue=out_hitl
     )
@@ -458,6 +508,39 @@ async def onboard_sku(
 
     return OnboardResponse(
         status="success",
-        version=new_version,
-        crops_added=crops_added
+        class_id=class_id,
+        gallery_version=new_version,
+        crops_added=crops_added,
+        message=f"Successfully onboarded {crops_added} new crop references for class {class_id}."
     )
+
+
+@app.get("/v1/exemplars/{class_id}")
+def get_class_exemplar(class_id: int):
+    """Returns the highest quality reference crop thumbnail for a commercial class ID from Sku Preview."""
+    from fastapi.responses import Response
+
+    # Primary source: User's manually curated high-resolution Sku Preview directory
+    sku_preview_dir = workspace_root / "data/processed/Sku Preview" / f"class_{class_id}"
+    if sku_preview_dir.exists():
+        images = sorted(list(sku_preview_dir.glob("*.jpg")) + list(sku_preview_dir.glob("*.png")))
+        if images:
+            with open(images[0], "rb") as f:
+                return Response(content=f.read(), media_type="image/jpeg")
+
+    # Secondary fallback: ground-truth crop directories
+    for parent in ["data/processed/crops/gt", "data/processed/crops/gt_clean"]:
+        for split in ["train", "test"]:
+            class_dir = workspace_root / parent / split / f"class_{class_id}"
+            if class_dir.exists():
+                images = sorted(list(class_dir.glob("*.jpg")) + list(class_dir.glob("*.png")))
+                if images:
+                    with open(images[0], "rb") as f:
+                        return Response(content=f.read(), media_type="image/jpeg")
+
+    # SVG fallback icon if no crop file found
+    svg_fallback = f"""<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+        <rect width="64" height="64" fill="#1e293b" rx="8"/>
+        <text x="32" y="38" font-family="Outfit, sans-serif" font-size="14" font-weight="bold" fill="#38bdf8" text-anchor="middle">SKU {class_id}</text>
+    </svg>"""
+    return Response(content=svg_fallback, media_type="image/svg+xml")

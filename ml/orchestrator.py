@@ -141,9 +141,9 @@ class AuditPipelineOrchestrator:
         # 5. Retrieval, Calibration & Decision Gating
         for crop_idx, (crop_dto, embedding_dto) in enumerate(zip(valid_crops, embeddings)):
             box = crop_dto.bbox
-            matches = self.retriever.search_dto(embedding_dto, top_k=5)
+            raw_matches = self.retriever.search_dto(embedding_dto, top_k=50)
 
-            if not matches:
+            if not raw_matches:
                 pred = PredictionDTO(
                     crop_id=f"crop_{crop_idx+1}",
                     bbox=box,
@@ -155,6 +155,16 @@ class AuditPipelineOrchestrator:
                 hitl_queue.append(pred)
                 continue
 
+            # Class-Unique Deduplication: Select highest visual similarity match per distinct class
+            seen_classes = set()
+            matches = []
+            for m in raw_matches:
+                if m.remapped_class_id not in seen_classes:
+                    seen_classes.add(m.remapped_class_id)
+                    matches.append(m)
+                    if len(matches) == 5:
+                        break
+
             top_visual_sim = matches[0].similarity
 
             import base64
@@ -165,7 +175,12 @@ class AuditPipelineOrchestrator:
             for m in matches:
                 cinfo = self._get_commercial_info(m.remapped_class_id)
                 dname = cinfo.display_name if cinfo else f"SKU {m.remapped_class_id}"
-                top5_cand_info.append({"class_id": m.remapped_class_id, "display_name": dname, "similarity": m.similarity})
+                top5_cand_info.append({
+                    "class_id": m.remapped_class_id,
+                    "display_name": dname,
+                    "similarity": m.similarity,
+                    "exemplar_url": f"/v1/exemplars/{m.remapped_class_id}"
+                })
 
             # ── 3-Tier Decision Gating ──────────────────────────────────
             #  Tier 1  ▸ S_vis >= 0.92  → auto-annotate directly
