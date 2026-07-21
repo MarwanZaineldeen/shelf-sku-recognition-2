@@ -58,12 +58,16 @@ class CommercialSKUDTO(BaseModel):
 
 class PredictionDTO(BaseModel):
     """Data transfer object representing the final auto-annotation outcome."""
+    crop_id: Optional[str] = Field(None, description="Unique crop identifier.")
     bbox: BBoxDTO = Field(..., description="Bounding box coordinates.")
     predicted_class_id: int = Field(..., description="The classified SKU target ID.")
     confidence_probability: float = Field(..., description="Calibrated match probability.")
     automated: bool = Field(..., description="True if safe to auto-annotate without human verification.")
     reject_reason: Optional[str] = Field(None, description="Reason for HITL routing (e.g. LOW_CONFIDENCE).")
     ocr_text: Optional[str] = Field(None, description="Extracted OCR text if performed.")
+    crop_bytes: Optional[bytes] = Field(None, description="Raw crop JPEG bytes.")
+    crop_data_url: Optional[str] = Field(None, description="Base64 Data-URL string for UI rendering.")
+    top5_candidates: Optional[List[Dict[str, Any]]] = Field(None, description="Top-5 candidate SKUs and similarities.")
     commercial_info: Optional[CommercialSKUDTO] = Field(None, description="Rich commercial SKU metadata.")
 
 

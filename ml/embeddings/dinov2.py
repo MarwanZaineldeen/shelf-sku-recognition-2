@@ -6,6 +6,12 @@ import torch
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModel
 
+import os
+_user_cache = os.path.expanduser("~/.cache/huggingface")
+os.environ["HF_HOME"] = _user_cache
+os.environ["HF_HUB_CACHE"] = os.path.join(_user_cache, "hub")
+os.environ["TRANSFORMERS_CACHE"] = os.path.join(_user_cache, "hub")
+
 from ml.embeddings.base import EmbeddingExtractor
 from ml.base import BaseEmbedder, CropDTO, EmbeddingDTO
 

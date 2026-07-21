@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="dark-theme">
     <!-- Header Navbar -->
@@ -43,7 +43,7 @@
         <div class="nav-right">
             <div class="status-indicator online">
                 <span class="pulse-dot"></span>
-                <span class="status-text">YOLOv8 + DINOv2 Online</span>
+                <span class="status-text">DINOv3 (768-D) + Qwen2-VL Online</span>
             </div>
         </div>
     </header>
@@ -56,27 +56,25 @@
             <!-- Top Controls Bar -->
             <div class="control-bar glass-panel">
                 <div class="control-group">
-                    <label class="control-label"><i class="fa-solid fa-image"></i> Select Audit Shelf Image:</label>
-                    <select id="shelf-image-select" class="custom-select">
-                        <option value="Transmed Others 285.jpg">Transmed Others 285.jpg (168 Product Facings)</option>
-                        <option value="Transmed_Autolabelling2.jpg">Transmed_Autolabelling2.jpg (67 Product Facings)</option>
-                        <option value="Transmed Others 263.jpg">Transmed Others 263.jpg (Large Multi-Brand Shelf)</option>
-                        <option value="Transmed Others 396.jpg">Transmed Others 396.jpg (Lipton Facings)</option>
-                    </select>
+                    <label class="control-label"><i class="fa-solid fa-upload"></i> Upload New Shelf Image:</label>
+                    <input type="file" id="shelf-file-input" accept="image/*" class="custom-file-input">
                 </div>
 
                 <div class="control-group">
-                    <button id="run-audit-btn" class="btn btn-primary btn-glow">
-                        <i class="fa-solid fa-play"></i> Run End-to-End Audit Pipeline
+                    <button id="upload-audit-btn" class="btn btn-primary btn-glow">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload & Run Audit
+                    </button>
+                    <button id="sample-audit-btn" class="btn btn-secondary">
+                        <i class="fa-solid fa-rotate-right"></i> Load Sample Shelf Photo
                     </button>
                 </div>
 
                 <div class="control-group filter-group">
                     <label class="control-label">Box Filter:</label>
                     <div class="btn-group">
-                        <button class="filter-btn active" data-filter="all">All (168)</button>
-                        <button class="filter-btn filter-auto" data-filter="auto"><i class="fa-solid fa-circle-check"></i> Automated (34)</button>
-                        <button class="filter-btn filter-hitl" data-filter="hitl"><i class="fa-solid fa-triangle-exclamation"></i> HITL Queue (134)</button>
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn filter-auto" data-filter="auto"><i class="fa-solid fa-circle-check"></i> Automated</button>
+                        <button class="filter-btn filter-hitl" data-filter="hitl"><i class="fa-solid fa-triangle-exclamation"></i> HITL Queue</button>
                     </div>
                 </div>
             </div>
@@ -136,7 +134,7 @@
                         <canvas id="shelf-canvas"></canvas>
                         <div class="canvas-loader" id="canvas-loader" style="display:none;">
                             <div class="spinner"></div>
-                            <span>Executing YOLOv8 + DINOv2 Feature Extraction...</span>
+                            <span>Executing YOLOv8 + DINOv3 + VLM Pipeline...</span>
                         </div>
                     </div>
                 </div>
@@ -179,28 +177,10 @@
                             </div>
 
                             <div class="gauge-card">
-                                <span class="gauge-title">Fused Similarity ($S_{\text{fused}}$)</span>
-                                <span class="gauge-value highlight-cyan" id="gauge-fused">0.8920</span>
-                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-cyan" id="bar-fused" style="width:89%;"></div></div>
+                                <span class="gauge-title">DINOv3 Visual Sim ($S_{\text{vis}}$)</span>
+                                <span class="gauge-value highlight-cyan" id="gauge-vis">0.9165</span>
+                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-cyan" id="bar-vis" style="width:91%;"></div></div>
                             </div>
-
-                            <div class="gauge-card">
-                                <span class="gauge-title">DINOv2 Visual Sim ($S_{\text{vis}}$)</span>
-                                <span class="gauge-value highlight-indigo" id="gauge-vis">0.8920</span>
-                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-indigo" id="bar-vis" style="width:89%;"></div></div>
-                            </div>
-
-                            <div class="gauge-card">
-                                <span class="gauge-title">TF-IDF OCR Sim ($S_{\text{tfidf}}$)</span>
-                                <span class="gauge-value highlight-purple" id="gauge-ocr">0.1450</span>
-                                <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-purple" id="bar-ocr" style="width:14%;"></div></div>
-                            </div>
-                        </div>
-
-                        <!-- Extracted OCR Text Box -->
-                        <div class="ocr-text-card">
-                            <span class="meta-label"><i class="fa-solid fa-font"></i> Extracted EasyOCR Text:</span>
-                            <div class="ocr-text-box" id="inspector-ocr-text">`Lipton YELLOW LABEL TEA`</div>
                         </div>
 
                         <!-- Top-5 Candidates Table -->
@@ -213,8 +193,7 @@
                                             <th>Rank</th>
                                             <th>Class</th>
                                             <th>Commercial SKU Title</th>
-                                            <th>$S_{\text{vis}}$</th>
-                                            <th>$S_{\text{fused}}$</th>
+                                            <th>Visual Sim ($S_{\text{vis}}$)</th>
                                             <th>Prob ($P$)</th>
                                         </tr>
                                     </thead>
@@ -250,7 +229,6 @@
                                 <th>Crop ID</th>
                                 <th>Top Candidate Prediction</th>
                                 <th>Visual Sim ($S_{\text{vis}}$)</th>
-                                <th>Fused Sim ($S_{\text{fused}}$)</th>
                                 <th>Calibrated Prob ($P$)</th>
                                 <th>Reject Reason</th>
                                 <th>Actions</th>
@@ -359,6 +337,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="app.js"></script>
+    <script src="/static/app.js"></script>
 </body>
 </html>

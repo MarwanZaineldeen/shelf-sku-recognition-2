@@ -20,24 +20,39 @@ class CommercialSKUOut(BaseModel):
     pack_type: str
 
 
+class CandidateOut(BaseModel):
+    class_id: int
+    display_name: str
+    similarity: float
+
+
 class AnnotationOut(BaseModel):
+    crop_id: str
     bbox: BBoxOut
     class_id: int
     confidence: float
+    crop_data_url: Optional[str] = None
+    parent_image_name: Optional[str] = None
     ocr_text: Optional[str] = None
     commercial_sku: Optional[CommercialSKUOut] = None
 
 
 class HITLRecordOut(BaseModel):
+    hitl_id: str
+    crop_id: str
     bbox: BBoxOut
     class_id: Optional[int] = None
     confidence: float
     reject_reason: str
+    crop_data_url: Optional[str] = None
+    parent_image_name: Optional[str] = None
     commercial_sku: Optional[CommercialSKUOut] = None
+    top5_candidates: Optional[List[CandidateOut]] = None
 
 
 class AuditResponse(BaseModel):
     image_name: str
+    parent_image_data_url: Optional[str] = None
     annotations: List[AnnotationOut]
     hitl_queue: List[HITLRecordOut]
 

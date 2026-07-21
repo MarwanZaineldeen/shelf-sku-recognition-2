@@ -1,120 +1,162 @@
-import os
+"""DINOv3 ViT-B/16 (768-D) Feature Extractor — Native transformers >= 4.56 support.
+
+Uses the teammate's offline model weights with native DINOv3ViTModel from
+the transformers library. Produces L2-normalised CLS-token embeddings.
+
+CRITICAL: Uses the teammate's aspect-ratio-preserving resize + gray-canvas
+padding preprocessing to match the DB reference embeddings exactly.
+"""
+
 import io
-import sys
-import time
 import torch
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from typing import List, Dict, Any, Tuple
 from pathlib import Path
 
-workspace_root = Path("d:/Marwan/ITI AI&ML/Transmid GP")
-sys.path.append(str(workspace_root))
-
 from ml.base import BaseEmbedder, CropDTO, EmbeddingDTO
-from transformers import AutoImageProcessor, AutoModel
+
+# Teammate's offline model weights location
+_PKG_MODEL_DIR = Path(
+    "d:/Marwan/ITI AI&ML/Transmid GP"
+    "/scratch/teammate_pkg"
+    "/dinov3_v2_exemplar_all_flat_offline_v1"
+    "/dinov3_v2_exemplar_all_flat_offline_v1"
+    "/model"
+)
+
+# Teammate's preprocessing constants (must match how DB embeddings were built)
+_IMAGE_SIZE = 224
+_PAD_COLOR = (124, 116, 104)  # ImageNet-mean gray
+
 
 class DINOv3Extractor(BaseEmbedder):
-    """Concrete DINOv3 (ViT-B/16) visual feature extractor plugin.
-    
-    Extracts 768-D L2-normalized visual feature embeddings for fine-grained FMCG product crops.
-    """
+    """DINOv3 ViT-B/16 768-D feature extractor using native HF support."""
 
     def __init__(
         self,
-        model_name_or_path: str = str(workspace_root / "configs/weights/dinov3_vitb16"),
+        model_dir: str | None = None,
         device: str = "cpu",
-        batch_size: int = 16
+        batch_size: int = 16,
     ):
-        super().__init__(dimension=768)
-        self.model_name_or_path = model_name_or_path
+        self._model_dir = Path(model_dir) if model_dir else _PKG_MODEL_DIR
         self.device = device
         self.batch_size = batch_size
         self.model = None
         self.processor = None
-        self.initialize({"model_name_or_path": model_name_or_path, "device": device, "batch_size": batch_size})
+        self._dimension = 768
+        self.initialize({})
+
+    # ── BaseEmbedder interface ───────────────────────────────────────
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
 
     def initialize(self, config: Dict[str, Any]) -> None:
-        """Loads DINOv3 model and processor weights in PyTorch evaluation mode."""
-        self.model_name_or_path = config.get("model_name_or_path", self.model_name_or_path)
-        self.device = config.get("device", self.device)
-        self.batch_size = config.get("batch_size", self.batch_size)
-        self.dimension = 768
+        """Load DINOv3ViTModel from local safetensors via AutoModel."""
+        from transformers import AutoModel, AutoImageProcessor
 
-        try:
-            local_path = Path(self.model_name_or_path)
-            if local_path.exists():
-                self.processor = AutoImageProcessor.from_pretrained(str(local_path), trust_remote_code=True)
-                self.model = AutoModel.from_pretrained(str(local_path), trust_remote_code=True)
-            else:
-                # Fallback to HuggingFace HUB if local folder is missing
-                self.processor = AutoImageProcessor.from_pretrained("facebook/dinov3-base", trust_remote_code=True)
-                self.model = AutoModel.from_pretrained("facebook/dinov3-base", trust_remote_code=True)
-
-            self.model.to(self.device).eval()
-            print(f"[DINOv3] Loaded model successfully on {self.device} (Dimension: {self.dimension}).")
-        except Exception as e:
-            # Flexible fallback for DINOv2 processor / vision backbone
-            print(f"[DINOv3] Warning: Custom DINOv3 AutoModel fallback triggered ({e}). Using DINOv2-base 768-D fallback.")
-            from transformers import AutoImageProcessor, AutoModel
-            self.processor = AutoImageProcessor.from_pretrained("facebook/dinov2-base")
-            self.model = AutoModel.from_pretrained("facebook/dinov2-base")
-            self.model.to(self.device).eval()
+        model_path = str(self._model_dir)
+        self.processor = AutoImageProcessor.from_pretrained(
+            model_path, local_files_only=True
+        )
+        self.model = AutoModel.from_pretrained(
+            model_path, local_files_only=True
+        )
+        self.model.to(self.device).eval()
+        self._dimension = self.model.config.hidden_size
+        print(
+            f"[DINOv3] Native DINOv3ViTModel loaded — "
+            f"{type(self.model).__name__}, dim={self._dimension}, "
+            f"device={self.device}"
+        )
 
     def health_check(self) -> Tuple[bool, str]:
         if self.model is None:
-            return False, "DINOv3 model not initialized."
+            return False, "DINOv3 model not initialised."
         return True, "Healthy"
 
     def shutdown(self) -> None:
         self.model = None
         self.processor = None
 
+    # ── Teammate's exact preprocessing ───────────────────────────────
+
+    @staticmethod
+    def _prepare_pil(image: Image.Image) -> Image.Image:
+        """Aspect-ratio-preserving resize + gray-canvas padding.
+
+        Reproduces the teammate's ``_prepare_pil`` exactly so that query
+        embeddings are in the same distribution as the reference DB vectors.
+        """
+        image = ImageOps.exif_transpose(image).convert("RGB")
+        scale = _IMAGE_SIZE / max(image.width, image.height)
+        width = max(1, min(_IMAGE_SIZE, round(image.width * scale)))
+        height = max(1, min(_IMAGE_SIZE, round(image.height * scale)))
+        if image.size != (width, height):
+            image = image.resize((width, height), resample=Image.Resampling.LANCZOS)
+        canvas = Image.new("RGB", (_IMAGE_SIZE, _IMAGE_SIZE), color=_PAD_COLOR)
+        canvas.paste(image, ((_IMAGE_SIZE - width) // 2, (_IMAGE_SIZE - height) // 2))
+        return canvas
+
+    # ── Core embedding logic ─────────────────────────────────────────
+
     def extract(self, images: List[Image.Image]) -> np.ndarray:
-        """Extracts 768-D L2-normalized feature vectors for a batch of PIL images."""
-        if self.model is None:
-            raise RuntimeError("DINOv3 model is not initialized. Call initialize() first.")
+        """Return (N, 768) L2-normalised CLS-token embeddings."""
         if not images:
-            return np.empty((0, self.dimension), dtype=np.float32)
+            return np.empty((0, self._dimension), dtype=np.float32)
 
-        all_embeddings = []
-        for i in range(0, len(images), self.batch_size):
-            batch = images[i : i + self.batch_size]
+        all_vecs: list[np.ndarray] = []
+        for start in range(0, len(images), self.batch_size):
+            batch_pil = images[start: start + self.batch_size]
 
-            # Convert numpy images to PIL if needed
-            processed_batch = []
-            for img in batch:
+            # Apply teammate's exact preprocessing
+            prepared = []
+            for img in batch_pil:
                 if isinstance(img, np.ndarray):
-                    if len(img.shape) == 3 and img.shape[2] == 3:
-                        img = Image.fromarray(img[:, :, ::-1])
+                    if img.ndim == 3 and img.shape[2] == 3:
+                        img = Image.fromarray(img[:, :, ::-1])  # BGR→RGB
                     else:
                         img = Image.fromarray(img)
-                processed_batch.append(img)
+                prepared.append(self._prepare_pil(img))
 
-            inputs = self.processor(images=processed_batch, return_tensors="pt").to(self.device)
+            # Use processor with resize/crop disabled since we already preprocessed
+            inputs = self.processor(
+                images=prepared,
+                return_tensors="pt",
+                do_resize=False,
+                do_center_crop=False,
+            )
+            inputs = {
+                k: v.to(self.device) if torch.is_tensor(v) else v
+                for k, v in inputs.items()
+            }
 
-            with torch.no_grad():
-                outputs = self.model(**inputs)
-                if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
-                    batch_feats = outputs.pooler_output
-                else:
-                    batch_feats = outputs.last_hidden_state[:, 0, :]
+            with torch.inference_mode():
+                out = self.model(**inputs)
+                cls_tok = out.last_hidden_state[:, 0, :]
+                cls_tok = torch.nn.functional.normalize(
+                    cls_tok.float(), p=2, dim=1
+                )
+            all_vecs.append(cls_tok.cpu().numpy().astype(np.float32))
 
-                # Enforce L2 Normalization
-                batch_feats = torch.nn.functional.normalize(batch_feats, p=2, dim=-1)
-                all_embeddings.append(batch_feats.cpu().numpy())
+        return np.concatenate(all_vecs, axis=0)
 
-        return np.concatenate(all_embeddings, axis=0).astype(np.float32)
+    # ── DTO wrappers ─────────────────────────────────────────────────
 
     def extract_dto(self, crop: CropDTO) -> EmbeddingDTO:
         pil_img = Image.open(io.BytesIO(crop.image_bytes)).convert("RGB")
         vec = self.extract([pil_img])[0]
-        return EmbeddingDTO(vector=vec.tolist(), dimension=self.dimension)
+        return EmbeddingDTO(vector=vec.tolist(), dimension=self._dimension)
 
     def extract_batch_dto(self, crops: List[CropDTO]) -> List[EmbeddingDTO]:
-        pil_images = []
-        for crop in crops:
-            pil_img = Image.open(io.BytesIO(crop.image_bytes)).convert("RGB")
-            pil_images.append(pil_img)
+        pil_images = [
+            Image.open(io.BytesIO(c.image_bytes)).convert("RGB")
+            for c in crops
+        ]
         vectors = self.extract(pil_images)
-        return [EmbeddingDTO(vector=v.tolist(), dimension=self.dimension) for v in vectors]
+        return [
+            EmbeddingDTO(vector=v.tolist(), dimension=self._dimension)
+            for v in vectors
+        ]

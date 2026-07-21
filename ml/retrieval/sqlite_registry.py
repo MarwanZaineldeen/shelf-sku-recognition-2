@@ -173,15 +173,19 @@ class SQLiteGalleryStore(BaseGalleryStore):
         )
         rows = cursor.fetchall()
 
-        embeddings: List[EmbeddingDTO] = []
+        num_rows = len(rows)
+        if num_rows == 0:
+            return np.empty((0, 768), dtype=np.float32), []
+
+        # Inspect dimension from first row
+        first_vec = np.frombuffer(rows[0]["embedding"], dtype=np.float32)
+        dim = len(first_vec)
+
+        vectors = np.empty((num_rows, dim), dtype=np.float32)
         metadata: List[Dict[str, Any]] = []
 
-        for row in rows:
-            # Deserialize vector from BLOB bytes
-            vec_arr = np.frombuffer(row["embedding"], dtype=np.float32)
-            embedding = EmbeddingDTO(vector=vec_arr.tolist(), dimension=len(vec_arr))
-            embeddings.append(embedding)
-
+        for idx, row in enumerate(rows):
+            vectors[idx] = np.frombuffer(row["embedding"], dtype=np.float32)
             meta = {
                 "crop_path": row["crop_path"],
                 "remapped_class_id": row["remapped_class_id"],
@@ -192,7 +196,7 @@ class SQLiteGalleryStore(BaseGalleryStore):
             }
             metadata.append(meta)
 
-        return embeddings, metadata
+        return vectors, metadata
 
     def delete_sku(self, class_id: int) -> int:
         """Deletes SKU references from index."""

@@ -22,14 +22,10 @@ class NumpyCosineIndex(VectorIndex, BaseRetriever):
             from ml.retrieval.sqlite_registry import SQLiteGalleryStore
             store = SQLiteGalleryStore()
             store.initialize({"db_path": db_path})
-            embeddings, metadata = store.fetch_all_references()
+            vectors, metadata = store.fetch_all_references()
             store.shutdown()
             
-            if embeddings:
-                # Convert list of EmbeddingDTO to pre-allocated numpy matrix
-                vectors = np.empty((len(embeddings), self.dimension), dtype=np.float32)
-                for i, e in enumerate(embeddings):
-                    vectors[i] = e.vector
+            if len(vectors) > 0:
                 self.add(vectors, metadata)
 
     def health_check(self) -> Tuple[bool, str]:

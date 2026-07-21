@@ -20,27 +20,91 @@ class Qwen2VLReranker:
         self.is_ready = False
 
     def initialize(self, config: Dict[str, Any]) -> None:
-        """Loads Qwen2-VL weights and processor with optional 4-bit / 8-bit quantization."""
+        """Loads Qwen2-VL weights and processor 100% offline from local disk or cache."""
         self.model_id = config.get("model_id", self.model_id)
         self.device = config.get("device", self.device)
-        
+        local_files_only = config.get("local_files_only", True)
+
+        # Check for local offline model directory
+        from pathlib import Path
+        local_weights_dir = Path("configs/weights/qwen2_vl_2b_instruct")
+        local_awq_dir = Path("configs/weights/qwen2_vl_awq")
+
+        if local_weights_dir.exists() and (local_weights_dir / "config.json").exists():
+            self.model_id = str(local_weights_dir.resolve())
+            print(f"[Qwen2VL] Using local offline model directory: '{self.model_id}'")
+        elif local_awq_dir.exists() and (local_awq_dir / "config.json").exists():
+            self.model_id = str(local_awq_dir.resolve())
+            print(f"[Qwen2VL] Using local offline AWQ model directory: '{self.model_id}'")
+
         try:
             from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+            import os
+            # Set HuggingFace offline environment variables to prevent any network calls
+            os.environ["TRANSFORMERS_OFFLINE"] = "1"
+            os.environ["HF_HUB_OFFLINE"] = "1"
 
-            self.processor = AutoProcessor.from_pretrained(self.model_id)
-            self.model = Qwen2VLForConditionalGeneration.from_pretrained(
-                self.model_id,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                device_map="auto" if torch.cuda.is_available() else None
-            )
-            if not torch.cuda.is_available():
+            try:
+                self.processor = AutoProcessor.from_pretrained(
+                    self.model_id,
+                    local_files_only=local_files_only
+                )
+                self.model = Qwen2VLForConditionalGeneration.from_pretrained(
+                    self.model_id,
+                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                    device_map="auto" if torch.cuda.is_available() else None,
+                    local_files_only=local_files_only
+                )
+            except Exception as net_e:
+                # Retry with online fallback if local_files_only failed and allowed
+                if local_files_only:
+                    print(f"[Qwen2VL] Offline load failed ({net_e}). Trying standard cache load...")
+                    self.processor = AutoProcessor.from_pretrained(self.model_id)
+                    self.model = Qwen2VLForConditionalGeneration.from_pretrained(
+                        self.model_id,
+                        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                        device_map="auto" if torch.cuda.is_available() else None
+                    )
+                else:
+                    raise net_e
+
+            if not torch.cuda.is_available() and self.model is not None:
                 self.model.to(self.device)
-            self.model.eval()
-            self.is_ready = True
-            print(f"[Qwen2VL] Loaded model '{self.model_id}' successfully on {self.device}.")
+            if self.model is not None:
+                self.model.eval()
+                self.is_ready = True
+                print(f"[Qwen2VL] 100% Offline Model '{self.model_id}' ready on {self.device}.")
         except Exception as e:
-            print(f"[Qwen2VL] Warning: Model initialization skipped/failed: {e}")
+            print(f"[Qwen2VL] Warning: Offline model initialization skipped/failed: {e}")
             self.is_ready = False
+
+    @staticmethod
+    def enhance_crop_for_vlm(crop_image: Image.Image) -> Image.Image:
+        """Applies mild bilateral filtering and CLAHE to enhance dim packaging text for VLM."""
+        try:
+            import cv2
+            import numpy as np
+
+            # Convert PIL to BGR OpenCV image
+            rgb_arr = np.array(crop_image.convert("RGB"))
+            bgr_arr = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2BGR)
+
+            # 1. Bilateral filter: denoise while preserving text edges
+            denoised = cv2.bilateralFilter(bgr_arr, d=5, sigmaColor=50, sigmaSpace=50)
+
+            # 2. Mild CLAHE contrast boost on LAB L-channel
+            lab = cv2.cvtColor(denoised, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(4, 4))
+            l_enhanced = clahe.apply(l)
+            enhanced_bgr = cv2.cvtColor(cv2.merge((l_enhanced, a, b)), cv2.COLOR_LAB2BGR)
+
+            # Convert back to PIL Image
+            enhanced_rgb = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
+            return Image.fromarray(enhanced_rgb)
+        except Exception as e:
+            # Fallback to original image if OpenCV enhancement fails
+            return crop_image
 
     def rerank_top5_candidates(
         self,
@@ -60,6 +124,9 @@ class Qwen2VLReranker:
         """
         if not self.is_ready or not top5_candidates:
             return top5_candidates
+
+        # Apply mild CLAHE + Bilateral enhancement to boost dim text readability for VLM
+        crop_image = self.enhance_crop_for_vlm(crop_image)
 
         t0 = time.perf_counter()
 
