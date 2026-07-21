@@ -509,7 +509,7 @@ async def onboard_sku(
     return OnboardResponse(
         status="success",
         class_id=class_id,
-        gallery_version=new_version,
+        version=new_version,
         crops_added=crops_added,
         message=f"Successfully onboarded {crops_added} new crop references for class {class_id}."
     )

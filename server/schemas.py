@@ -75,3 +75,5 @@ class OnboardResponse(BaseModel):
     status: str
     version: int
     crops_added: int
+    class_id: Optional[int] = None
+    message: Optional[str] = None
