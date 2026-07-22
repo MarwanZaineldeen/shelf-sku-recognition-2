@@ -28,7 +28,6 @@ from ml.ocr.easy_ocr import EasyOCREngine
 from ml.calibrators.platt import PlattCalibrator
 from ml.fusion.tfidf_ocr_matcher import TfidfOCRMatcher
 from ml.decision.gated_policy import GatedAnnotationPolicy
-from ml.active_learning.hitl_store import HITLActiveLearningStore
 from ml.orchestrator import AuditPipelineOrchestrator
 from ml.active_learning.store import ReviewStore
 from ml.active_learning.ingest import ReviewContextCache, record_review
