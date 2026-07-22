@@ -17,6 +17,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const canvas = document.getElementById("shelf-canvas");
     const ctx = canvas ? canvas.getContext("2d") : null;
     const canvasLoader = document.getElementById("canvas-loader");
+    const navTabs = document.querySelectorAll(".nav-tab");
+    const tabContents = document.querySelectorAll(".tab-content");
 
     // Auto-Increment Class ID Helper
     function fetchNextClassId() {
