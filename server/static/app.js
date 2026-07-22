@@ -620,13 +620,27 @@ document.addEventListener("DOMContentLoaded", () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ class_ids: classIds })
         })
-        .then(res => res.json())
+        .then(async res => {
+            const text = await res.text();
+            let resData;
+            try { resData = JSON.parse(text); } catch(e) { throw new Error(text || `Server Error ${res.status}`); }
+            if (!res.ok) throw new Error(resData.detail || `HTTP Error ${res.status}`);
+            return resData;
+        })
         .then(data => {
             showToast(`Successfully purged ${classIds.length} SKU(s) and ${data.deleted_vectors_count || 0} vector embedding(s)!`);
-            selectedCatalogClasses.clear();
-            updateBulkToolbarState();
             
-            // Re-fetch catalog mapping and refresh grid + auto-increment class ID
+            // Remove deleted class IDs locally from memory so cards disappear INSTANTLY without page refresh!
+            classList = classList.filter(item => !classIds.includes(item.class_id));
+            classIds.forEach(id => {
+                delete catalogMap[id];
+                selectedCatalogClasses.delete(id);
+            });
+            updateBulkToolbarState();
+            renderCatalogExplorer();
+            fetchNextClassId();
+
+            // Re-sync with backend catalog mapping
             fetch("/api/catalog")
                 .then(r => r.json())
                 .then(catData => {
@@ -932,7 +946,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
                 .then(data => {
                     btnSubmitOnboard.disabled = false;
-                    btnSubmitOnboard.innerHTML = '<i class="fa-solid fa-rocket"></i> Run Pipeline 2 Onboarding & Shelf Audit';
+                    btnSubmitOnboard.innerHTML = '<i class="fa-solid fa-rocket"></i> Run New SKU Onboarding & Shelf Audit';
 
                     const placeholder = document.getElementById("onboard-status-placeholder");
                     const resultsPanel = document.getElementById("onboard-results-panel");
@@ -940,7 +954,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (resultsPanel) resultsPanel.style.display = "block";
 
                     document.getElementById("res-crops-count").innerText = data.crops_added || 0;
-                    document.getElementById("res-db-version").innerText = `v${data.version || 1}`;
+                    document.getElementById("res-db-version").innerText = `v${data.version || data.db_version || 1}`;
                     document.getElementById("res-class-id").innerText = classId;
 
                     // Render Metadata Summary Card
@@ -987,8 +1001,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
                 .catch(err => {
                     btnSubmitOnboard.disabled = false;
-                    btnSubmitOnboard.innerHTML = '<i class="fa-solid fa-rocket"></i> Run Pipeline 2 Onboarding & Shelf Audit';
-                    alert(`Pipeline 2 Onboarding Validation Error:\n${err.message}`);
+                    btnSubmitOnboard.innerHTML = '<i class="fa-solid fa-rocket"></i> Run New SKU Onboarding & Shelf Audit';
+                    alert(`Onboarding Validation Error:\n${err.message}`);
                 });
         });
     }

@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css?v=7.0">
+    <link rel="stylesheet" href="/static/style.css?v=8.0">
 </head>
 <body class="dark-theme">
     <!-- Header Navbar -->
@@ -34,10 +34,10 @@
                     <i class="fa-solid fa-user-check"></i> HITL Review Queue <span class="badge badge-rose" id="nav-hitl-count">0</span>
                 </button>
                 <button class="nav-tab" data-tab="catalog-explorer">
-                    <i class="fa-solid fa-boxes-stacked"></i> Commercial Catalog (67 SKUs)
+                    <i class="fa-solid fa-boxes-stacked"></i> Commercial Catalog
                 </button>
                 <button class="nav-tab nav-tab-highlight" data-tab="sku-onboarding">
-                    <i class="fa-solid fa-plus-circle"></i> + Add New SKU (Pipeline 2)
+                    <i class="fa-solid fa-plus-circle"></i> Add New SKU
                 </button>
                 <button class="nav-tab" data-tab="latency-benchmark">
                     <i class="fa-solid fa-chart-line"></i> Latency & Architecture
@@ -298,7 +298,7 @@
         <section id="tab-sku-onboarding" class="tab-content">
             <div class="glass-panel section-panel">
                 <div class="panel-header">
-                    <h2><i class="fa-solid fa-plus-circle"></i> Pipeline 2: Few-Shot New SKU Onboarding Engine</h2>
+                    <h2><i class="fa-solid fa-plus-circle"></i> Few-Shot New SKU Onboarding Engine</h2>
                     <p class="panel-desc">Onboard 10–50 reference crop examples for a new SKU product. Captures commercial catalog metadata, extracts visual feature embeddings, updates SQLite vector database & brand clusters, and runs a live validation shelf audit.</p>
                 </div>
 
@@ -397,7 +397,7 @@
                         </div>
 
                         <button id="btn-submit-onboard" class="btn btn-primary btn-glow btn-block">
-                            <i class="fa-solid fa-rocket"></i> Run Pipeline 2 Onboarding & Shelf Audit
+                            <i class="fa-solid fa-rocket"></i> Run New SKU Onboarding & Shelf Audit
                         </button>
                     </div>
 
@@ -430,7 +430,7 @@
                                 </div>
                                 <div class="stat-box">
                                     <span class="stat-label">Vector Dim</span>
-                                    <span class="stat-val indigo" id="res-vector-dim">384-D</span>
+                                    <span class="stat-val indigo" id="res-vector-dim">768-D</span>
                                 </div>
                                 <div class="stat-box">
                                     <span class="stat-label">Class ID</span>
@@ -561,6 +561,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="/static/app.js?v=7.0"></script>
+    <script src="/static/app.js?v=8.0"></script>
 </body>
 </html>

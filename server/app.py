@@ -155,18 +155,14 @@ def get_catalog():
                 return {"classes": by_training_id}
     return {"classes": {}}
 
+from server.schemas import DeleteSKUsRequest
+
 @app.post("/v1/catalog/delete")
 @app.delete("/v1/catalog/skus")
-def delete_catalog_skus(req: Optional[Any] = None, class_ids: Optional[List[int]] = None):
+def delete_catalog_skus(payload: DeleteSKUsRequest):
     """Deletes single or multiple SKUs across SQLite database, catalog JSONs, in-memory index, and preview thumbnails."""
     import shutil
-    target_ids = []
-    if req and hasattr(req, "class_ids"):
-        target_ids = req.class_ids
-    elif isinstance(req, dict) and "class_ids" in req:
-        target_ids = req["class_ids"]
-    elif class_ids:
-        target_ids = class_ids
+    target_ids = payload.class_ids
 
     if not target_ids:
         raise HTTPException(status_code=400, detail="Must provide non-empty 'class_ids' list")
