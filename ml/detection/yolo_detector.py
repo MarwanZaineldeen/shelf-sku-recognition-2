@@ -59,15 +59,14 @@ class YOLOv8Detector(BaseDetector):
         if not self.model:
             raise RuntimeError("YOLO model not initialized.")
 
-        # Decode image bytes
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is None:
-            raise ValueError("Failed to decode image bytes. Payload might be corrupted.")
+        # Decode image bytes via PIL
+        import io
+        from PIL import Image
+        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         # Execute YOLO predict (run on CPU by default for stability)
         results = self.model.predict(
-            source=img,
+            source=pil_img,
             imgsz=self.imgsz,
             conf=self.confidence_threshold,
             device="cpu",

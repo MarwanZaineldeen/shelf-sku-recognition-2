@@ -10,9 +10,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=3.0">
 </head>
 <body class="dark-theme">
+    <!-- Header Navbar -->
     <!-- Header Navbar -->
     <header class="app-navbar glass-panel">
         <div class="nav-left">
@@ -43,7 +44,7 @@
         <div class="nav-right">
             <div class="status-indicator online">
                 <span class="pulse-dot"></span>
-                <span class="status-text">DINOv3 (768-D) + Qwen2-VL Online</span>
+                <span class="status-text">DINOv3 + Qwen2-VL</span>
             </div>
         </div>
     </header>
@@ -84,7 +85,7 @@
                 <div class="metric-card glass-panel border-emerald">
                     <div class="metric-icon bg-emerald-light"><i class="fa-solid fa-boxes-packing"></i></div>
                     <div class="metric-data">
-                        <span class="metric-value" id="stat-detected">168</span>
+                        <span class="metric-value" id="stat-detected">0</span>
                         <span class="metric-title">Total Products Detected</span>
                     </div>
                     <span class="metric-tag tag-emerald">YOLOv8l-SKU110K</span>
@@ -93,25 +94,25 @@
                 <div class="metric-card glass-panel border-cyan">
                     <div class="metric-icon bg-cyan-light"><i class="fa-solid fa-circle-check"></i></div>
                     <div class="metric-data">
-                        <span class="metric-value" id="stat-automated">34</span>
+                        <span class="metric-value" id="stat-automated">0</span>
                         <span class="metric-title">Automated Annotations</span>
                     </div>
-                    <span class="metric-tag tag-cyan" id="stat-auto-rate">20.2% Auto Rate</span>
+                    <span class="metric-tag tag-cyan" id="stat-auto-rate">0.0% Auto Rate</span>
                 </div>
 
                 <div class="metric-card glass-panel border-rose">
                     <div class="metric-icon bg-rose-light"><i class="fa-solid fa-user-shield"></i></div>
                     <div class="metric-data">
-                        <span class="metric-value" id="stat-hitl">134</span>
+                        <span class="metric-value" id="stat-hitl">0</span>
                         <span class="metric-title">HITL Audit Queue</span>
                     </div>
-                    <span class="metric-tag tag-rose" id="stat-hitl-rate">79.8% HITL Rate</span>
+                    <span class="metric-tag tag-rose" id="stat-hitl-rate">0.0% HITL Rate</span>
                 </div>
 
                 <div class="metric-card glass-panel border-indigo">
                     <div class="metric-icon bg-indigo-light"><i class="fa-solid fa-gauge-high"></i></div>
                     <div class="metric-data">
-                        <span class="metric-value" id="stat-latency">63.6 ms</span>
+                        <span class="metric-value" id="stat-latency">0.0 ms</span>
                         <span class="metric-title">Per-Facing Latency</span>
                     </div>
                     <span class="metric-tag tag-indigo">CPU Optimized</span>
@@ -122,16 +123,25 @@
             <div class="workspace-grid">
                 <!-- Shelf Image Canvas View -->
                 <div class="canvas-panel glass-panel">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-crosshairs"></i> Shelf Product Bounding Box Overlay</h3>
-                        <div class="legend-group">
-                            <span class="legend-item"><span class="legend-dot green"></span> Automated Match ($P \ge 80\%$)</span>
-                            <span class="legend-item"><span class="legend-dot red"></span> HITL Queue Match ($P < 80\%$)</span>
+                    <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+                        <h3 style="margin:0;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-crosshairs"></i> Shelf Product Bounding Box Overlay</h3>
+                        <div class="legend-group" style="display:flex;align-items:center;gap:16px;margin-left:auto;margin-right:16px;">
+                            <span class="legend-item" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;"><span class="legend-dot green"></span> Automated Match</span>
+                            <span class="legend-item" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;"><span class="legend-dot red"></span> HITL Queue Match</span>
                         </div>
+                        <button id="btn-export-txt" class="btn btn-emerald btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Export Audit (.txt)</button>
                     </div>
                     <div class="canvas-wrapper" id="canvas-wrapper">
+                        <div id="canvas-empty-state" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;text-align:center;color:#94a3b8;border:2px dashed rgba(51,65,85,0.8);border-radius:12px;margin:16px;cursor:pointer;transition:all 0.3s ease;" onclick="document.getElementById('shelf-file-input').click();">
+                            <div style="width:64px;height:64px;border-radius:50%;background:rgba(56,189,248,0.1);color:#38bdf8;display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:16px;">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <h4 style="font-size:18px;font-weight:700;color:#f8fafc;margin-bottom:6px;">Upload Supermarket Shelf Image</h4>
+                            <p style="font-size:13px;max-width:400px;margin-bottom:16px;">Select a high-resolution shelf scan (.jpg, .png) to run YOLOv8 detection, DINOv3 visual search, and VLM reranking.</p>
+                            <span class="btn btn-primary btn-sm"><i class="fa-solid fa-folder-open"></i> Browse File</span>
+                        </div>
                         <img id="shelf-base-img" src="" alt="Shelf Image" class="shelf-img-hidden">
-                        <canvas id="shelf-canvas"></canvas>
+                        <canvas id="shelf-canvas" style="display:none;"></canvas>
                         <div class="canvas-loader" id="canvas-loader" style="display:none;">
                             <div class="spinner"></div>
                             <span>Executing YOLOv8 + DINOv3 + VLM Pipeline...</span>
@@ -164,6 +174,7 @@
                                     <span class="badge badge-brand" id="inspector-brand">Lipton</span>
                                     <span class="badge badge-pack" id="inspector-pack">25 Bags</span>
                                     <span class="badge badge-status" id="inspector-status-badge">Automated</span>
+                                    <span class="badge badge-amber" id="inspector-vlm-badge" style="display:none;"><i class="fa-solid fa-sparkles"></i> Qwen2-VL Verified</span>
                                 </div>
                             </div>
                         </div>
@@ -171,13 +182,13 @@
                         <!-- Metric Score Gauges -->
                         <div class="score-gauges-grid">
                             <div class="gauge-card">
-                                <span class="gauge-title">Calibrated Probability</span>
+                                <span class="gauge-title">Visual Similarity / Confidence</span>
                                 <span class="gauge-value highlight-emerald" id="gauge-prob">94.4%</span>
                                 <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-emerald" id="bar-prob" style="width:94%;"></div></div>
                             </div>
 
                             <div class="gauge-card">
-                                <span class="gauge-title">DINOv3 Visual Sim ($S_{\text{vis}}$)</span>
+                                <span class="gauge-title">DINOv3 Visual Score</span>
                                 <span class="gauge-value highlight-cyan" id="gauge-vis">0.9165</span>
                                 <div class="gauge-bar-bg"><div class="gauge-bar-fill fill-cyan" id="bar-vis" style="width:91%;"></div></div>
                             </div>
@@ -185,16 +196,17 @@
 
                         <!-- Top-5 Candidates Table -->
                         <div class="top5-candidates-section">
-                            <h4><i class="fa-solid fa-list-ol"></i> Top-5 Generated Candidates</h4>
+                            <h4><i class="fa-solid fa-list-ol"></i> Top-7 Class-Unique Candidates</h4>
                             <div class="table-responsive">
                                 <table class="candidates-table">
                                     <thead>
                                         <tr>
                                             <th>Rank</th>
+                                            <th>Exemplar</th>
                                             <th>Class</th>
                                             <th>Commercial SKU Title</th>
-                                            <th>Visual Sim ($S_{\text{vis}}$)</th>
-                                            <th>Prob ($P$)</th>
+                                            <th>Visual Similarity</th>
+                                            <th>Fused Score</th>
                                         </tr>
                                     </thead>
                                     <tbody id="top5-candidates-tbody">
@@ -219,17 +231,16 @@
             <div class="glass-panel section-panel">
                 <div class="panel-header">
                     <h2><i class="fa-solid fa-user-check"></i> Human-in-the-Loop (HITL) Audit Review Queue</h2>
-                    <p class="panel-desc">Review low-confidence predictions ($P < 80\%$) and unseen product crops. Approving or correcting crops automatically upserts feature embeddings into the active continual gallery!</p>
+                    <p class="panel-desc">Review low-confidence predictions and unverified product facings. Approving or correcting crops automatically logs feedback for active learning curation!</p>
                 </div>
                 <div class="table-responsive">
                     <table class="hitl-queue-table">
                         <thead>
                             <tr>
                                 <th>Crop Preview</th>
-                                <th>Crop ID</th>
+                                <th>Crop ID & Details</th>
                                 <th>Top Candidate Prediction</th>
-                                <th>Visual Sim ($S_{\text{vis}}$)</th>
-                                <th>Calibrated Prob ($P$)</th>
+                                <th>Visual Similarity</th>
                                 <th>Reject Reason</th>
                                 <th>Actions</th>
                             </tr>
@@ -266,39 +277,27 @@
                 </div>
                 <div class="latency-grid">
                     <div class="latency-card glass-panel">
-                        <h3>Stage 1: YOLOv8l-SKU110K Localization</h3>
+                        <h3>Stage 1: YOLOv8l-SKU110K BBox Localization</h3>
                         <span class="latency-val">521.0 ms</span>
                         <p>Class-agnostic bounding box localization across entire shelf.</p>
                     </div>
 
                     <div class="latency-card glass-panel">
-                        <h3>Stage 2: Crop Quality Gate</h3>
-                        <span class="latency-val">31.7 ms</span>
-                        <p>Geometry, aspect ratio & Laplacian variance blur audit.</p>
-                    </div>
-
-                    <div class="latency-card glass-panel">
-                        <h3>Stage 3: DINOv2 Feature Extraction</h3>
+                        <h3>Stage 2: DINOv3 768-D Feature Extraction</h3>
                         <span class="latency-val">7,956.1 ms (48.8 ms/facing)</span>
-                        <p>384-D L2-normalized visual embedding extraction.</p>
+                        <p>768-D L2-normalized visual embedding extraction.</p>
                     </div>
 
                     <div class="latency-card glass-panel">
-                        <h3>Stage 4: Vector Retrieval</h3>
+                        <h3>Stage 3: Vector Retrieval</h3>
                         <span class="latency-val">182.0 ms (1.1 ms/facing)</span>
-                        <p>2-Layer SQLite & Cosine index top-K candidate search.</p>
+                        <p>SQLite & NumPy Cosine Index Top-7 Class-Unique Search.</p>
                     </div>
 
                     <div class="latency-card glass-panel">
-                        <h3>Stage 5: Gated EasyOCR & TF-IDF</h3>
-                        <span class="latency-val">1,866.6 ms (11.4 ms/facing)</span>
-                        <p>CPU-gated text parsing & character 3-5 n-gram matcher.</p>
-                    </div>
-
-                    <div class="latency-card glass-panel">
-                        <h3>Stage 6: Platt Calibration & Gating</h3>
-                        <span class="latency-val">0.0 ms</span>
-                        <p>Logit sigmoid probability scaling & decision policy routing.</p>
+                        <h3>Stage 4: Qwen2-VL Reranker & Score Fusion</h3>
+                        <span class="latency-val">350.0 ms (2.1 ms/facing)</span>
+                        <p>80% Visual + 20% VLM zero-shot packaging text verification.</p>
                     </div>
                 </div>
             </div>
@@ -337,6 +336,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=4.0"></script>
 </body>
 </html>

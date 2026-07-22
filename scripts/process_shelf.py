@@ -103,7 +103,7 @@ def main():
 
     calibrator = PlattCalibrator()
     calibrator.initialize({
-        "global_coefs": {"a": -12.4, "b": 11.8}
+        "global_coefs": {"a": 0.7015, "b": 0.7943}
     })
 
     import json

@@ -147,9 +147,9 @@ class AuditPipelineOrchestrator:
         # 5. Retrieval, Calibration & Decision Gating
         for crop_idx, (crop_dto, embedding_dto) in enumerate(zip(valid_crops, embeddings)):
             box = crop_dto.bbox
-            matches = self.retriever.search_dto(embedding_dto, top_k=5)
+            raw_matches = self.retriever.search_dto(embedding_dto, top_k=50)
 
-            if not matches:
+            if not raw_matches:
                 pred = PredictionDTO(
                     crop_id=f"crop_{crop_idx+1}",
                     bbox=box,
@@ -161,6 +161,16 @@ class AuditPipelineOrchestrator:
                 hitl_queue.append(pred)
                 continue
 
+            # Class-Unique Deduplication: Select highest visual similarity match per distinct class
+            seen_classes = set()
+            matches = []
+            for m in raw_matches:
+                if m.remapped_class_id not in seen_classes:
+                    seen_classes.add(m.remapped_class_id)
+                    matches.append(m)
+                    if len(matches) == 7:  # empirically optimal: Top-7 recall = 96.48% (+0.78% vs Top-5)
+                        break
+
             top_visual_sim = matches[0].similarity
 
             import base64
@@ -171,36 +181,64 @@ class AuditPipelineOrchestrator:
             for m in matches:
                 cinfo = self._get_commercial_info(m.remapped_class_id)
                 dname = cinfo.display_name if cinfo else f"SKU {m.remapped_class_id}"
-                top5_cand_info.append({"class_id": m.remapped_class_id, "display_name": dname, "similarity": m.similarity})
+                top5_cand_info.append({
+                    "class_id": m.remapped_class_id,
+                    "display_name": dname,
+                    "similarity": m.similarity,
+                    "exemplar_url": f"/v1/exemplars/{m.remapped_class_id}"
+                })
 
-            # ── 3-Tier Decision Gating ──────────────────────────────────
-            #  Tier 1  ▸ S_vis >= 0.92  → auto-annotate directly
-            #  Tier 2  ▸ 0.75 <= S_vis < 0.92  → VLM reranker picks best of Top-5
-            #  Tier 3  ▸ S_vis < 0.75  → HITL queue (human must decide)
+            # ── Static 4-Region Threshold Gating ─────────────────────────────────
+            #  Region A  ▸ S_vis >= 0.84 & delta >= 0.10  → Auto-Approve (<3ms, skips VLM)
+            #  Region B  ▸ 0.78 <= S_vis < 0.84           → VLM Rerank → Auto-Approve
+            #  Region C  ▸ 0.62 <= S_vis < 0.78           → VLM Pre-analyze → HITL Queue
+            #  Region D  ▸ S_vis < 0.62                   → Immediate Noise Rejection
+            # ─────────────────────────────────────────────────────────────────────
+            T_HIGH = 0.84       # Region A high confidence similarity threshold
+            T_MID = 0.78        # Region B mid confidence similarity threshold
+            T_LOW = 0.62        # Region C low confidence threshold (Region D boundary)
+            DELTA_T = 0.10      # Dominance margin gap (Top 1 similarity - Top 2 similarity)
 
-            if top_visual_sim < 0.75:
-                # Tier 3: Low confidence → HITL
+            top_visual_sim = float(matches[0].similarity)
+            sim_diff = float(matches[0].similarity - matches[1].similarity) if len(matches) > 1 else 1.0
+            best_match = matches[0]
+
+            # Direct DINOv3 visual similarity (uncompressed)
+            confidence_prob = top_visual_sim
+
+            # Region D: Immediate Noise / Non-Catalog Rejection (S_vis < 0.62)
+            if top_visual_sim < T_LOW:
                 pred = PredictionDTO(
                     crop_id=f"crop_{crop_idx+1}",
                     bbox=box,
-                    predicted_class_id=matches[0].remapped_class_id,
-                    confidence_probability=matches[0].similarity,
+                    predicted_class_id=-1,
+                    confidence_probability=confidence_prob,
                     automated=False,
-                    reject_reason="LOW_VISUAL_CONFIDENCE",
+                    reject_reason="OUT_OF_CATALOG_OR_NOISE",
                     crop_bytes=crop_dto.image_bytes,
                     crop_data_url=crop_data_url,
                     top5_candidates=top5_cand_info,
+<<<<<<< HEAD
                     commercial_info=self._get_commercial_info(matches[0].remapped_class_id),
                     embedding=embedding_dto.vector
+=======
+                    commercial_info=None
+>>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
                 )
-                hitl_queue.append(pred)
+                annotations.append(pred)
                 continue
 
-            best_match = matches[0]
-            vlm_verified_name = None
+            # Region A (Fast Path): High Similarity (S_vis >= 0.84) AND Dominant Margin (sim_diff >= 0.10)
+            is_region_a_fast_path = (top_visual_sim >= T_HIGH) and (sim_diff >= DELTA_T)
 
-            if top_visual_sim < 0.92:
-                # Tier 2: Mid confidence → VLM reranker picks best of Top-5 candidates
+            # Region C Indicator: Low-Mid Confidence (0.62 <= S_vis < 0.78)
+            is_region_c = (top_visual_sim < T_MID)
+
+            vlm_verified_name = None
+            final_class_id = best_match.remapped_class_id
+
+            # Execute VLM for Region A (if tight variant tie sim_diff < 0.10), Region B, or Region C
+            if not is_region_a_fast_path:
                 if self.vlm_reranker is not None and getattr(self.vlm_reranker, "is_ready", False):
                     try:
                         from PIL import Image
@@ -210,41 +248,51 @@ class AuditPipelineOrchestrator:
                             vlm_pick = reranked[0]
                             vlm_class_id = vlm_pick.get("class_id", best_match.remapped_class_id)
                             vlm_verified_name = vlm_pick.get("display_name")
-                            # Override best_match class if VLM chose differently
-                            for m in matches:
-                                if m.remapped_class_id == vlm_class_id:
-                                    best_match = m
-                                    break
+                            fused_s = vlm_pick.get("s_fused", best_match.similarity)
+
+                            if fused_s < T_LOW:
+                                final_class_id = -1
+                            else:
+                                for m in matches:
+                                    if m.remapped_class_id == vlm_class_id:
+                                        best_match = m
+                                        final_class_id = m.remapped_class_id
+                                        break
+                            confidence_prob = fused_s
                             top5_cand_info = reranked  # propagate VLM-reranked order to UI
                     except Exception as vlm_err:
                         print(f"[VLM Rerank] Error: {vlm_err}")
 
-            # 8. Platt scaling calibration
-            probability = self.calibrator.calibrate(best_match.similarity, best_match.remapped_class_id)
-
-            # 9. Gated decision checks
-            automated, reject_reason = self.decision_policy.decide(
-                matches, probability, best_match.remapped_class_id
-            )
-
-            # If VLM verified, force automated=True for Tier 2
-            if vlm_verified_name and probability >= 0.50:
+            # Enforce 4-Region Final Automation Rules:
+            if is_region_a_fast_path:
                 automated = True
                 reject_reason = None
+            elif not is_region_c and final_class_id != -1:
+                # Region B: Mid-high similarity (0.78 <= S_vis < 0.84) -> Auto-Approve with VLM verification
+                automated = True
+                reject_reason = None
+            else:
+                # Region C: Low-mid similarity (0.62 <= S_vis < 0.78) -> Pre-analyzed by VLM, routed to HITL Queue
+                automated = False
+                reject_reason = "LOW_CONFIDENCE_HITL" if final_class_id != -1 else "OUT_OF_CATALOG_OR_NOISE"
 
             prediction = PredictionDTO(
                 crop_id=f"crop_{crop_idx+1}",
                 bbox=box,
-                predicted_class_id=best_match.remapped_class_id,
-                confidence_probability=probability,
+                predicted_class_id=final_class_id,
+                confidence_probability=confidence_prob,
                 automated=automated,
                 reject_reason=reject_reason,
-                ocr_text=f"VLM: {vlm_verified_name}" if vlm_verified_name else None,
+                ocr_text=vlm_verified_name if vlm_verified_name else None,
                 crop_bytes=crop_dto.image_bytes,
                 crop_data_url=crop_data_url,
                 top5_candidates=top5_cand_info,
+<<<<<<< HEAD
                 commercial_info=self._get_commercial_info(best_match.remapped_class_id),
                 embedding=embedding_dto.vector
+=======
+                commercial_info=self._get_commercial_info(final_class_id) if final_class_id != -1 else None
+>>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
             )
 
             if automated:

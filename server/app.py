@@ -27,6 +27,7 @@ from ml.ocr.easy_ocr import EasyOCREngine
 from ml.calibrators.platt import PlattCalibrator
 from ml.fusion.tfidf_ocr_matcher import TfidfOCRMatcher
 from ml.decision.gated_policy import GatedAnnotationPolicy
+from ml.active_learning.hitl_store import HITLActiveLearningStore
 from ml.orchestrator import AuditPipelineOrchestrator
 from ml.active_learning.store import ReviewStore
 from ml.active_learning.ingest import ReviewContextCache, record_review
@@ -67,6 +68,12 @@ catalog_dir = workspace_root / "configs/class_catalog"
 if catalog_dir.exists():
     app.mount("/static/catalog", StaticFiles(directory=str(catalog_dir)), name="catalog")
 
+from fastapi.responses import FileResponse, JSONResponse, Response
+
+@app.get("/favicon.ico")
+def get_favicon():
+    return Response(status_code=204)
+
 @app.get("/")
 def get_dashboard():
     index_html = static_dir / "index.html"
@@ -90,14 +97,26 @@ def get_app_js():
 
 @app.get("/api/catalog")
 def get_catalog():
-    sku_mapping_path = workspace_root / "configs/sku_mapping.json"
-    if sku_mapping_path.exists():
-        with open(sku_mapping_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+    for mp in ["configs/sku_mapping_v2.json", "c:/Users/asusd/Desktop/sku_mapping_v2.json", "configs/sku_mapping.json"]:
+        p = workspace_root / mp if not mp.startswith("c:") else Path(mp)
+        if p.exists():
+            with open(p, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                raw_classes = data.get("classes", {})
+                # Key catalog cleanly by training_class_id
+                by_training_id = {}
+                for k, info in raw_classes.items():
+                    t_id = info.get("training_class_id")
+                    if t_id is not None:
+                        by_training_id[str(t_id)] = info
+                    else:
+                        by_training_id[str(k)] = info
+                return {"classes": by_training_id}
     return {"classes": {}}
 
 # Global orchestrator and registry storage references
 orchestrator: Any = None
+<<<<<<< HEAD
 detector_plugin: Any = None
 embedder_plugin: Any = None
 retriever_plugin: Any = None
@@ -113,36 +132,46 @@ review_store_plugin: Any = None
 # response and the reviewer's verdict, so a reviewed crop keeps its vector
 # without a second backbone pass.
 review_context_cache = ReviewContextCache()
+=======
+# Global plugin instances
+detector_plugin = None
+quality_gate_plugin = None
+embedder_plugin = None
+retriever_plugin = None
+ocr_plugin = None
+calibrator_plugin = None
+fusion_plugin = None
+decision_policy_plugin = None
+db_store_plugin = None
+vlm_reranker_plugin = None
+hitl_store_plugin = None
+orchestrator = None
+>>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
 
 
 @app.on_event("startup")
 def startup_event():
+<<<<<<< HEAD
     global orchestrator, detector_plugin, embedder_plugin, retriever_plugin, ocr_plugin
     global calibrator_plugin, fusion_plugin, decision_policy_plugin, quality_gate_plugin, db_store_plugin
     global review_store_plugin
+=======
+    global detector_plugin, quality_gate_plugin, embedder_plugin, retriever_plugin
+    global ocr_plugin, calibrator_plugin, fusion_plugin, decision_policy_plugin
+    global db_store_plugin, vlm_reranker_plugin, hitl_store_plugin, orchestrator
+>>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
 
     print("Starting up Retail AI Platform Service...", flush=True)
 
-    # 1. Load yaml config
-    with open(config_path, "r") as f:
-        cfg = yaml.safe_load(f)
-
-    # 2. Load lexicon configuration
-    with open(lexicon_path, "r") as f:
-        lexicons = json.load(f)
-
-    # 3. Instantiate concrete plugins
+    # Instantiate plugins
     detector_plugin = YOLOv8Detector()
     quality_gate_plugin = BboxQualityGate()
 
-    # DINOv3 ViT-B/16 (768-D) — Native support via transformers 5.14.1
-    # Teammate's model weights outperformed DINOv2 (99% Top-5 accuracy)
     from ml.embeddings.dinov3 import DINOv3Extractor
     print("  Using DINOv3 ViT-B/16 SOTA 768-D Visual Backbone (Native)!", flush=True)
     embedder_plugin = DINOv3Extractor(device="cpu")
     retriever_plugin = NumpyCosineIndex(dimension=768)
     db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_dinov3.db")
-    dimension = 768
 
     # Load Qwen2-VL Reranker
     from ml.vlm.qwen2_vl_reranker import Qwen2VLReranker
@@ -156,13 +185,22 @@ def startup_event():
     calibrator_plugin = PlattCalibrator()
     decision_policy_plugin = GatedAnnotationPolicy()
     db_store_plugin = SQLiteGalleryStore()
+    hitl_store_plugin = HITLActiveLearningStore()
 
     print("  Initializing SQLite Gallery Store...", flush=True)
     db_store_plugin.initialize({"db_path": db_path})
 
+<<<<<<< HEAD
     print("  Initializing Pipeline 3 Review Store...", flush=True)
     review_store_plugin = ReviewStore()
     review_store_plugin.initialize({"db_path": str(review_db_path)})
+=======
+    print("  Initializing Active Continual Learning HITL Store...", flush=True)
+    hitl_store_plugin.initialize({
+        "db_path": str(workspace_root / "data/processed/hitl_active_learning.db"),
+        "gallery_db_path": db_path
+    })
+>>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
 
     print("  Initializing YOLOv8 Detector (SKU110K Class-Agnostic)...", flush=True)
     detector_plugin.initialize({
@@ -171,22 +209,10 @@ def startup_event():
         "imgsz": 640
     })
 
-    print("  Initializing Crop Quality Gate...", flush=True)
-    quality_gate_plugin.initialize({
-        "min_area": 1024,
-        "max_aspect": 5.0,
-        "min_blur": 30.0
-    })
-
-    print(f"  Initializing Cosine Search Index ({dimension}-D)...", flush=True)
+    print(f"  Initializing Cosine Search Index (768-D)...", flush=True)
     retriever_plugin.initialize({
-        "dimension": dimension,
+        "dimension": 768,
         "db_path": db_path
-    })
-
-    print("  Initializing Platt Calibrator...", flush=True)
-    calibrator_plugin.initialize({
-        "global_coefs": {"a": 15.0, "b": -11.0}
     })
 
     print("  Initializing Gated Decision Policy...", flush=True)
@@ -263,6 +289,9 @@ async def audit_shelf(file: UploadFile = File(...)):
             detail="Service not fully loaded."
         )
 
+    import time
+    t0 = time.perf_counter()
+
     try:
         image_bytes = await file.read()
         annotations, hitl_queue = orchestrator.process_shelf(image_bytes, ocr_timeout_ms=300)
@@ -272,12 +301,14 @@ async def audit_shelf(file: UploadFile = File(...)):
             detail=f"Shelf audit failed: {str(e)}"
         )
 
+    proc_time_ms = (time.perf_counter() - t0) * 1000.0
+
     import base64
     parent_b64 = base64.b64encode(image_bytes).decode("utf-8")
     parent_data_url = f"data:image/jpeg;base64,{parent_b64}"
     filename = file.filename or "uploaded_shelf.jpg"
 
-    return _format_audit_response(filename, parent_data_url, annotations, hitl_queue)
+    return _format_audit_response(filename, parent_data_url, annotations, hitl_queue, proc_time_ms)
 
 
 @app.get("/v1/audit/sample", response_model=AuditResponse)
@@ -294,18 +325,24 @@ def audit_sample():
         else:
             raise HTTPException(status_code=404, detail="No sample test image found.")
 
+    import time
+    t0 = time.perf_counter()
+
     with open(sample_path, "rb") as f:
         img_bytes = f.read()
 
     annotations, hitl_queue = orchestrator.process_shelf(img_bytes, ocr_timeout_ms=300)
 
+    proc_time_ms = (time.perf_counter() - t0) * 1000.0
+
     import base64
     parent_b64 = base64.b64encode(img_bytes).decode("utf-8")
     parent_data_url = f"data:image/jpeg;base64,{parent_b64}"
 
-    return _format_audit_response(sample_path.name, parent_data_url, annotations, hitl_queue)
+    return _format_audit_response(sample_path.name, parent_data_url, annotations, hitl_queue, proc_time_ms)
 
 
+<<<<<<< HEAD
 def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue) -> AuditResponse:
     # Retain audit context for anything a human may review. Embeddings are
     # cached server-side and deliberately never enter the response schema —
@@ -313,6 +350,9 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
     review_context_cache.put_predictions(filename, hitl_queue)
     review_context_cache.put_predictions(filename, annotations)
 
+=======
+def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue, proc_time_ms: float = 0.0) -> AuditResponse:
+>>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
     out_annotations = []
     for pred in annotations:
         comm_out = None
@@ -329,7 +369,19 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
         
         top5_out = None
         if pred.top5_candidates:
-            top5_out = [CandidateOut(class_id=c["class_id"], display_name=c["display_name"], similarity=c["similarity"]) for c in pred.top5_candidates]
+            top5_out = [
+                CandidateOut(
+                    class_id=c["class_id"],
+                    display_name=c["display_name"],
+                    similarity=float(c.get("similarity", 0.0)),
+                    vlm_selected=bool(c.get("qwen2_vl_verified", False)),
+                    s_fused=float(c["s_fused"]) if "s_fused" in c else None,
+                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}")
+                )
+                for c in pred.top5_candidates
+            ]
+
+        is_vlm = True if (pred.ocr_text and "VLM" in pred.ocr_text) else False
 
         out_annotations.append(
             AnnotationOut(
@@ -340,6 +392,8 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                 crop_data_url=pred.crop_data_url,
                 parent_image_name=filename,
                 ocr_text=pred.ocr_text,
+                vlm_verified=is_vlm,
+                vlm_reason=pred.ocr_text if is_vlm else None,
                 commercial_sku=comm_out
             )
         )
@@ -360,7 +414,19 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
 
         top5_out = None
         if pred.top5_candidates:
-            top5_out = [CandidateOut(class_id=c["class_id"], display_name=c["display_name"], similarity=c["similarity"]) for c in pred.top5_candidates]
+            top5_out = [
+                CandidateOut(
+                    class_id=c["class_id"],
+                    display_name=c["display_name"],
+                    similarity=float(c.get("similarity", 0.0)),
+                    vlm_selected=bool(c.get("qwen2_vl_verified", False)),
+                    s_fused=float(c["s_fused"]) if "s_fused" in c else None,
+                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}")
+                )
+                for c in pred.top5_candidates
+            ]
+
+        is_vlm = True if (pred.ocr_text and "VLM" in pred.ocr_text) else False
 
         out_hitl.append(
             HITLRecordOut(
@@ -372,6 +438,8 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                 reject_reason=pred.reject_reason or "LOW_CONFIDENCE",
                 crop_data_url=pred.crop_data_url,
                 parent_image_name=filename,
+                vlm_verified=is_vlm,
+                vlm_reason=pred.ocr_text if is_vlm else None,
                 commercial_sku=comm_out,
                 top5_candidates=top5_out
             )
@@ -380,6 +448,7 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
     return AuditResponse(
         image_name=filename,
         parent_image_data_url=parent_data_url,
+        processing_time_ms=proc_time_ms,
         annotations=out_annotations,
         hitl_queue=out_hitl
     )
@@ -409,6 +478,7 @@ async def save_hitl_review(
     predicted_class_id: int = Form(-1),
     top1_similarity: float = Form(0.0)
 ):
+<<<<<<< HEAD
     """Persists a human review to the Pipeline 3 review store.
 
     A negative assigned_class_id is the dashboard's "Unknown / Non-Catalog
@@ -458,6 +528,26 @@ async def save_hitl_review(
         "embedding_captured": record.embedding is not None,
         "pending_reviews": review_store_plugin.count_unconsumed(),
     }
+=======
+    """Saves human reviewer correction/confirmation to active SQLite DB for Pipeline 3 Continual Learning."""
+    disp_name = "Class Unknown"
+    if orchestrator and assigned_class_id != -1 and hasattr(orchestrator, "sku_mapping"):
+        disp_name = orchestrator.sku_mapping.get(assigned_class_id, {}).get("display_name", f"Class {assigned_class_id}")
+    
+    if hitl_store_plugin:
+        try:
+            hitl_store_plugin.correct_task(
+                task_id=hitl_id,
+                correct_class_id=assigned_class_id,
+                correct_display_name=disp_name,
+                verifier_notes=f"Reviewed by {reviewer_id}"
+            )
+        except Exception as e:
+            print(f"[HITL Store] Log note: {e}")
+
+    print(f"[HITL Review] Corrected & logged record '{hitl_id}' -> Class: {assigned_class_id} ({disp_name}) by {reviewer_id}")
+    return {"status": "success", "hitl_id": hitl_id, "assigned_class_id": assigned_class_id, "display_name": disp_name}
+>>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
 
 
 @app.post("/v1/onboard/sku", response_model=OnboardResponse)
@@ -536,6 +626,39 @@ async def onboard_sku(
 
     return OnboardResponse(
         status="success",
+        class_id=class_id,
         version=new_version,
-        crops_added=crops_added
+        crops_added=crops_added,
+        message=f"Successfully onboarded {crops_added} new crop references for class {class_id}."
     )
+
+
+@app.get("/v1/exemplars/{class_id}")
+def get_class_exemplar(class_id: int):
+    """Returns the highest quality reference crop thumbnail for a commercial class ID from Sku Preview."""
+    from fastapi.responses import Response
+
+    # Primary source: User's manually curated high-resolution Sku Preview directory
+    sku_preview_dir = workspace_root / "data/processed/Sku Preview" / f"class_{class_id}"
+    if sku_preview_dir.exists():
+        images = sorted(list(sku_preview_dir.glob("*.jpg")) + list(sku_preview_dir.glob("*.png")))
+        if images:
+            with open(images[0], "rb") as f:
+                return Response(content=f.read(), media_type="image/jpeg")
+
+    # Secondary fallback: ground-truth crop directories
+    for parent in ["data/processed/crops/gt", "data/processed/crops/gt_clean"]:
+        for split in ["train", "test"]:
+            class_dir = workspace_root / parent / split / f"class_{class_id}"
+            if class_dir.exists():
+                images = sorted(list(class_dir.glob("*.jpg")) + list(class_dir.glob("*.png")))
+                if images:
+                    with open(images[0], "rb") as f:
+                        return Response(content=f.read(), media_type="image/jpeg")
+
+    # SVG fallback icon if no crop file found
+    svg_fallback = f"""<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+        <rect width="64" height="64" fill="#1e293b" rx="8"/>
+        <text x="32" y="38" font-family="Outfit, sans-serif" font-size="14" font-weight="bold" fill="#38bdf8" text-anchor="middle">SKU {class_id}</text>
+    </svg>"""
+    return Response(content=svg_fallback, media_type="image/svg+xml")
