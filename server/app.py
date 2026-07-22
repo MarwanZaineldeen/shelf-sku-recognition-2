@@ -3,13 +3,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import numpy as np
 
-<<<<<<< HEAD
-workspace_root = Path(__file__).resolve().parent.parent
-=======
 # Repository root, resolved from this file so the server runs on any machine.
 # Override with RETAIL_AI_ROOT if data and weights live outside the repo.
 workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
->>>>>>> f7f05b12b24045efb126fe4ff9049fcb7ad886ff
 os.environ["HF_HOME"] = str(workspace_root / ".cache" / "huggingface")
 os.environ["HF_HUB_CACHE"] = str(workspace_root / ".cache" / "huggingface" / "hub")
 os.environ["HUGGINGFACE_HUB_CACHE"] = str(workspace_root / ".cache" / "huggingface" / "hub")
@@ -162,7 +158,6 @@ def get_catalog():
 
 # Global orchestrator and registry storage references
 orchestrator: Any = None
-<<<<<<< HEAD
 detector_plugin: Any = None
 embedder_plugin: Any = None
 retriever_plugin: Any = None
@@ -171,48 +166,19 @@ calibrator_plugin: Any = None
 fusion_plugin: Any = None
 decision_policy_plugin: Any = None
 quality_gate_plugin: Any = None
-<<<<<<< HEAD
-=======
 db_store_plugin: Any = None
 review_store_plugin: Any = None
+vlm_reranker_plugin: Any = None
+hitl_store_plugin: Any = None
 
-# Holds audit-time context (embedding, candidate slate) between the audit
-# response and the reviewer's verdict, so a reviewed crop keeps its vector
-# without a second backbone pass.
-review_context_cache = ReviewContextCache()
-=======
-# Global plugin instances
-detector_plugin = None
-quality_gate_plugin = None
-embedder_plugin = None
-retriever_plugin = None
-ocr_plugin = None
-calibrator_plugin = None
-fusion_plugin = None
-decision_policy_plugin = None
-db_store_plugin = None
-vlm_reranker_plugin = None
-hitl_store_plugin = None
-orchestrator = None
->>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
-
-
->>>>>>> f7f05b12b24045efb126fe4ff9049fcb7ad886ff
 @app.on_event("startup")
 def startup_event():
-<<<<<<< HEAD
     global orchestrator, detector_plugin, embedder_plugin, retriever_plugin, ocr_plugin
     global calibrator_plugin, fusion_plugin, decision_policy_plugin, quality_gate_plugin, db_store_plugin
-    global review_store_plugin
-=======
-    global detector_plugin, quality_gate_plugin, embedder_plugin, retriever_plugin
-    global ocr_plugin, calibrator_plugin, fusion_plugin, decision_policy_plugin
-    global db_store_plugin, vlm_reranker_plugin, hitl_store_plugin, orchestrator
->>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
+    global review_store_plugin, vlm_reranker_plugin, hitl_store_plugin
 
     instrumentator.expose(app, endpoint="/metrics")
 
-<<<<<<< HEAD
     print("Starting up Retail AI Platform Service...", flush=True)
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
@@ -238,17 +204,6 @@ def startup_event():
         db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_onboarding.db")
         dimension = 384
         retriever_plugin = HierarchicalCosineIndex(dimension=384)
-=======
-    # Instantiate plugins
-    detector_plugin = YOLOv8Detector()
-    quality_gate_plugin = BboxQualityGate()
-
-    from ml.embeddings.dinov3 import DINOv3Extractor
-    print("  Using DINOv3 ViT-B/16 SOTA 768-D Visual Backbone (Native)!", flush=True)
-    embedder_plugin = DINOv3Extractor(device="cpu")
-    retriever_plugin = NumpyCosineIndex(dimension=768)
-    db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_dinov3.db")
->>>>>>> f7f05b12b24045efb126fe4ff9049fcb7ad886ff
 
     vlm_reranker_plugin = None
     try:
@@ -270,17 +225,19 @@ def startup_event():
     print("  Initializing SQLite Gallery Store...", flush=True)
     db_store_plugin.initialize({"db_path": db_path})
 
-<<<<<<< HEAD
-    print("  Initializing Pipeline 3 Review Store...", flush=True)
-    review_store_plugin = ReviewStore()
-    review_store_plugin.initialize({"db_path": str(review_db_path)})
-=======
-    print("  Initializing Active Continual Learning HITL Store...", flush=True)
-    hitl_store_plugin.initialize({
-        "db_path": str(workspace_root / "data/processed/hitl_active_learning.db"),
-        "gallery_db_path": db_path
-    })
->>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
+    try:
+        review_store_plugin = ReviewStore()
+        review_store_plugin.initialize({"db_path": str(review_db_path)})
+    except Exception:
+        pass
+
+    try:
+        hitl_store_plugin.initialize({
+            "db_path": str(workspace_root / "data/processed/hitl_active_learning.db"),
+            "gallery_db_path": db_path
+        })
+    except Exception:
+        pass
 
     print("  Initializing YOLOv8 Detector (SKU110K Class-Agnostic)...", flush=True)
     yolo_weights = workspace_root / "runs/detect/yolo8l_sku110k/yolov8l-sku110k.pt"
@@ -437,17 +394,7 @@ def audit_sample():
     return _format_audit_response(sample_path.name, parent_data_url, annotations, hitl_queue, proc_time_ms)
 
 
-<<<<<<< HEAD
-def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue) -> AuditResponse:
-    # Retain audit context for anything a human may review. Embeddings are
-    # cached server-side and deliberately never enter the response schema —
-    # 768 floats per crop would bloat the payload for no client benefit.
-    review_context_cache.put_predictions(filename, hitl_queue)
-    review_context_cache.put_predictions(filename, annotations)
-
-=======
 def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue, proc_time_ms: float = 0.0) -> AuditResponse:
->>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
     out_annotations = []
     for pred in annotations:
         comm_out = None
@@ -582,64 +529,7 @@ async def save_hitl_review(
     predicted_class_id: int = Form(-1),
     top1_similarity: float = Form(0.0)
 ):
-<<<<<<< HEAD
-    """Persists a human review to the Pipeline 3 review store.
-
-    A negative assigned_class_id is the dashboard's "Unknown / Non-Catalog
-    Competitor SKU" choice and is recorded as an open-set rejection.
-
-    The audit-time embedding and candidate slate come from the server-side
-    context cache. On a miss — a restart between audit and review — the
-    review is still stored using the client-supplied prediction fields;
-    it simply cannot be promoted into the gallery later.
-    """
-    if not review_store_plugin:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Review store not initialized."
-        )
-
-    context = review_context_cache.get(parent_image_name, crop_id)
-
-    try:
-        review_id = record_review(
-            store=review_store_plugin,
-            source_image=parent_image_name,
-            crop_id=crop_id,
-            assigned_class_id=assigned_class_id,
-            reviewer_id=reviewer_id,
-            context=context,
-            predicted_class_id=predicted_class_id,
-            top1_similarity=top1_similarity,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-    record = review_store_plugin.fetch_review(review_id)
-    print(
-        f"[HITL Review] {hitl_id} -> {record.decision} "
-        f"(class {assigned_class_id}) by {reviewer_id}; "
-        f"embedding {'captured' if record.embedding else 'unavailable'}",
-        flush=True
-    )
-
-    return {
-        "status": "success",
-        "hitl_id": hitl_id,
-        "review_id": review_id,
-        "decision": record.decision,
-        "assigned_class_id": assigned_class_id,
-        "embedding_captured": record.embedding is not None,
-        "pending_reviews": review_store_plugin.count_unconsumed(),
-    }
-=======
     """Saves human reviewer correction/confirmation to active SQLite DB for Pipeline 3 Continual Learning."""
-<<<<<<< HEAD
-    print(f"[HITL Review] Corrected record '{hitl_id}' -> Assigned Class: {assigned_class_id} by {reviewer_id}")
-    review_type = "confirmation" if (hitl_id and "confirm" in hitl_id.lower()) else "correction"
-    hitl_reviews_counter.labels(type=review_type).inc()
-    return {"status": "success", "hitl_id": hitl_id, "assigned_class_id": assigned_class_id}
-=======
     disp_name = "Class Unknown"
     if orchestrator and assigned_class_id != -1 and hasattr(orchestrator, "sku_mapping"):
         disp_name = orchestrator.sku_mapping.get(assigned_class_id, {}).get("display_name", f"Class {assigned_class_id}")
@@ -657,8 +547,6 @@ async def save_hitl_review(
 
     print(f"[HITL Review] Corrected & logged record '{hitl_id}' -> Class: {assigned_class_id} ({disp_name}) by {reviewer_id}")
     return {"status": "success", "hitl_id": hitl_id, "assigned_class_id": assigned_class_id, "display_name": disp_name}
->>>>>>> 5f7b25090f9c7bc17b2c34d438731729d04d25a6
->>>>>>> f7f05b12b24045efb126fe4ff9049fcb7ad886ff
 
 
 def compute_next_class_id() -> int:
