@@ -46,7 +46,7 @@ class SKUOnboarder:
         family_id: str,
         source_image: str = "pre_cropped_batch",
         detector: Optional[Any] = None,
-        use_yolo_crop: bool = True,
+        use_yolo_crop: bool = False,
         augment: bool = False
     ) -> Dict[str, Any]:
         """Onboards ready cropped product images from a directory.

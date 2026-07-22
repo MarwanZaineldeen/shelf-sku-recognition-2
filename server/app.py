@@ -716,6 +716,7 @@ async def onboard_sku(
                 family_id=family_cluster_id,
                 source_image=source_img_tag,
                 detector=detector_plugin,
+                use_yolo_crop=False,
                 augment=True
             )
             crops_added += res.get("crops_added", 0)
@@ -739,34 +740,7 @@ async def onboard_sku(
             
             bbox = BBoxDTO(x1=0.0, y1=0.0, x2=float(w), y2=float(h), confidence=1.0)
 
-            # Detect product using YOLOv8l detector plugin and crop strictly on product region
-            if detector_plugin:
-                try:
-                    boxes = detector_plugin.detect(img_bytes)
-                    if boxes:
-                        best_box = max(boxes, key=lambda b: getattr(b, "confidence", 1.0))
-                        b_x1 = getattr(best_box, "x1", 0.0)
-                        b_y1 = getattr(best_box, "y1", 0.0)
-                        b_x2 = getattr(best_box, "x2", float(w))
-                        b_y2 = getattr(best_box, "y2", float(h))
-                        conf = float(getattr(best_box, "confidence", 1.0))
-
-                        x1 = max(0, int(b_x1) if b_x1 > 1.0 else int(b_x1 * w))
-                        y1 = max(0, int(b_y1) if b_y1 > 1.0 else int(b_y1 * h))
-                        x2 = min(w, int(b_x2) if b_x2 > 1.0 else int(b_x2 * w))
-                        y2 = min(h, int(b_y2) if b_y2 > 1.0 else int(b_y2 * h))
-
-                        if (x2 - x1) > 5 and (y2 - y1) > 5:
-                            cropped_img = img[y1:y2, x1:x2]
-                            success, enc_bytes = cv2.imencode(".jpg", cropped_img)
-                            if success:
-                                img_bytes = enc_bytes.tobytes()
-                                img = cropped_img
-                                h, w = cropped_img.shape[:2]
-                                bbox = BBoxDTO(x1=float(x1), y1=float(y1), x2=float(x2), y2=float(y2), confidence=conf)
-                                print(f"[Pipeline 2] YOLOv8l localized product in {file.filename} -> box [{x1}, {y1}, {x2}, {y2}] ({w}x{h}px)")
-                except Exception as det_err:
-                    print(f"[Pipeline 2 Warning] YOLOv8l product detection failed for {file.filename}: {det_err}")
+            # Unplugged detector step for reference crops so in-hand / pre-cropped product photos are ingested 100% as-is
 
             crop = CropDTO(
                 crop_id=f"onboard_crop_{file.filename}",
