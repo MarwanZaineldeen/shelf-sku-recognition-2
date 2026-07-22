@@ -77,7 +77,7 @@ class TestAPIAuditE2E(unittest.TestCase):
         
         data = response.json()
         self.assertEqual(data["status"], "success")
-        self.assertEqual(data["crops_added"], 1)
+        self.assertEqual(data["crops_added"], 3)
         self.assertGreater(data["version"], version_before)
 
 
