@@ -1225,6 +1225,24 @@
       "source_image_count": 1,
       "evidence": "Onboarded via Web UI (Pipeline 2)",
       "notes": "Dynamic Onboarding"
+    },
+    "100": {
+      "raw_class_id": "100",
+      "training_class_id": 100,
+      "project_sku_id": "TM_RAW_100",
+      "brand": "Dreem",
+      "product_name": "Dreem jelly strawberry",
+      "variant": "jelly strawberry",
+      "size": "",
+      "pack_count": "31 crops",
+      "pack_type": "box",
+      "display_name": "Dreem jelly strawberry craft it with joy value pack X3",
+      "status": "verified",
+      "identity_confidence": "A",
+      "instance_count": 31,
+      "source_image_count": 31,
+      "evidence": "Onboarded via Web UI (Pipeline 2)",
+      "notes": "Dreem jelly strawberry craft it with joy value pack X3"
     }
   }
 }
