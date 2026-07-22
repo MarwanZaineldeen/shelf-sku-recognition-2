@@ -170,6 +170,11 @@ review_store_plugin: Any = None
 vlm_reranker_plugin: Any = None
 hitl_store_plugin: Any = None
 
+# Holds audit-time context (embedding, candidate slate) between the audit
+# response and the reviewer's verdict, so a reviewed crop keeps its vector
+# without a second backbone pass.
+review_context_cache = ReviewContextCache()
+
 @app.on_event("startup")
 def startup_event():
     global orchestrator, detector_plugin, embedder_plugin, retriever_plugin, ocr_plugin
