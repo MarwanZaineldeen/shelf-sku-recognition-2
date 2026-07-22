@@ -182,33 +182,46 @@ class AuditPipelineOrchestrator:
                     "exemplar_url": f"/v1/exemplars/{m.remapped_class_id}"
                 })
 
-            # ── 3-Tier Decision Gating ──────────────────────────────────
-            #  Tier 1  ▸ S_vis >= 0.92  → auto-annotate directly
-            #  Tier 2  ▸ 0.75 <= S_vis < 0.92  → VLM reranker picks best of Top-5
-            #  Tier 3  ▸ S_vis < 0.75  → HITL queue (human must decide)
+            # ── Strategy 1: Dynamic 4-Region Shannon Entropy & Dominance Gating ──
+            sim_scores = np.array([m.similarity for m in matches], dtype=np.float32)
+            total_sim = float(np.sum(sim_scores)) if np.sum(sim_scores) > 0 else 1e-12
+            probs = sim_scores / total_sim
 
-            if top_visual_sim < 0.75:
-                # Tier 3: Low confidence → HITL
+            # Shannon Entropy H (bits)
+            entropy = -float(np.sum([p * np.log2(p) for p in probs if p > 0]))
+            share1 = float(probs[0])
+            ratio12 = float(sim_scores[0] / sim_scores[1]) if (len(sim_scores) > 1 and sim_scores[1] > 0) else 2.0
+            top_visual_sim = float(matches[0].similarity)
+
+            # Region D: Immediate Noise / Non-Catalog Rejection (S_vis < 0.62 or Entropy H > 2.10 bits)
+            if top_visual_sim < 0.62 or entropy > 2.10:
                 pred = PredictionDTO(
                     crop_id=f"crop_{crop_idx+1}",
                     bbox=box,
-                    predicted_class_id=matches[0].remapped_class_id,
+                    predicted_class_id=matches[0].remapped_class_id if top_visual_sim >= 0.50 else -1,
                     confidence_probability=matches[0].similarity,
                     automated=False,
-                    reject_reason="LOW_VISUAL_CONFIDENCE",
+                    reject_reason="OUT_OF_CATALOG_OR_NOISE",
                     crop_bytes=crop_dto.image_bytes,
                     crop_data_url=crop_data_url,
                     top5_candidates=top5_cand_info,
-                    commercial_info=self._get_commercial_info(matches[0].remapped_class_id)
+                    commercial_info=self._get_commercial_info(matches[0].remapped_class_id) if top_visual_sim >= 0.50 else None
                 )
                 hitl_queue.append(pred)
                 continue
 
+            # Check if Region A (Fast Path): High Confidence & Dominant Winner
+            # S_vis >= 0.90 AND ratio12 >= 1.15 AND entropy <= 1.20 bits
+            is_region_a_fast_path = (top_visual_sim >= 0.90) and (ratio12 >= 1.15) and (entropy <= 1.20)
+
+            # Region C Indicator: Low-Mid Confidence (0.62 <= S_vis < 0.75 or 1.80 < H <= 2.10)
+            is_region_c = (top_visual_sim < 0.75) or (entropy > 1.80)
+
             best_match = matches[0]
             vlm_verified_name = None
 
-            if top_visual_sim < 0.92:
-                # Tier 2: Mid confidence → VLM reranker picks best of Top-5 candidates
+            # Execute VLM for Region A (if tight tie ratio12 < 1.15), Region B, or Region C
+            if not is_region_a_fast_path:
                 if self.vlm_reranker is not None and getattr(self.vlm_reranker, "is_ready", False):
                     try:
                         from PIL import Image
@@ -235,8 +248,16 @@ class AuditPipelineOrchestrator:
                 matches, probability, best_match.remapped_class_id
             )
 
-            # If VLM verified, force automated=True for Tier 2
-            if vlm_verified_name and probability >= 0.50:
+            # 10. Enforce 4-Region Final Automation Rules:
+            if is_region_a_fast_path:
+                automated = True
+                reject_reason = None
+            elif is_region_c:
+                # Region C: VLM pre-analyzes candidates, but routes to HITL Queue for 1-click human verification
+                automated = False
+                reject_reason = "REGION_C_LOW_CONFIDENCE_HITL"
+            elif vlm_verified_name and probability >= 0.50:
+                # Region B: VLM auto-approves choice
                 automated = True
                 reject_reason = None
 
