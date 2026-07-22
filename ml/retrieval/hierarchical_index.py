@@ -179,3 +179,26 @@ class HierarchicalCosineIndex(VectorIndex, BaseRetriever):
             )
 
         return results
+
+    def remove_classes(self, class_ids: List[int]) -> None:
+        """Evicts all vector embeddings and centroids for the specified class IDs."""
+        if not class_ids or self.gallery_vectors is None or len(self.metadata) == 0:
+            return
+
+        target_set = set(class_ids)
+        keep_indices = []
+        new_meta = []
+
+        for i, meta in enumerate(self.metadata):
+            remap = int(meta.get("remapped_class_id", -999))
+            old = int(meta.get("old_class_id", -999))
+            if remap not in target_set and old not in target_set:
+                keep_indices.append(i)
+                new_meta.append(meta)
+
+        if len(keep_indices) == 0:
+            self.shutdown()
+        else:
+            new_vectors = self.gallery_vectors[keep_indices]
+            self.add(new_vectors, new_meta)
+

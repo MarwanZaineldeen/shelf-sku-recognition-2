@@ -137,7 +137,7 @@ class SKUOnboarder:
                     rejected += 1
                     continue
 
-            # Extract embedding
+            # 1. Extract raw crop embedding
             embedding = self.embedder.extract_dto(crop_dto)
             vec = embedding.vector
 
@@ -162,6 +162,70 @@ class SKUOnboarder:
             })
 
             crops_added += 1
+
+            # 2. Generate 3x Realistic Low-Quality Shelf Augmentations (Rotation, Blur, Brightness, Perspective Skew)
+            try:
+                from PIL import Image, ImageEnhance, ImageFilter
+                pil_raw = Image.fromarray(cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB))
+                aw, ah = pil_raw.size
+
+                for aug_idx in range(2):
+                    aug = pil_raw.copy()
+
+                    # Photometric jitter
+                    b_factor = 0.75 if aug_idx == 0 else 1.25
+                    c_factor = 0.85 if aug_idx == 0 else 1.15
+                    aug = ImageEnhance.Brightness(aug).enhance(b_factor)
+                    aug = ImageEnhance.Contrast(aug).enhance(c_factor)
+
+                    # Rotation (-15 to +15 deg)
+                    angle = -14 if aug_idx == 0 else 14
+                    aug = aug.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False, fillcolor=(124, 116, 104))
+
+                    # Defocus & Motion Blur
+                    aug = aug.filter(ImageFilter.GaussianBlur(radius=1.2 if aug_idx == 0 else 0.8))
+
+                    # Perspective Skewing / Shearing
+                    cv_img = cv2.cvtColor(np.array(aug), cv2.COLOR_RGB2BGR)
+                    sh, sw = cv_img.shape[:2]
+                    pts1 = np.float32([[0, 0], [sw, 0], [0, sh], [sw, sh]])
+                    shift = int(min(sw, sh) * (0.08 if aug_idx == 0 else 0.12))
+                    pts2 = np.float32([[shift, 0], [sw - shift, 0], [0, sh], [sw, sh]]) if aug_idx == 0 else np.float32([[0, 0], [sw, 0], [shift, sh], [sw - shift, sh]])
+                    M = cv2.getPerspectiveTransform(pts1, pts2)
+                    skewed_np = cv2.warpPerspective(cv_img, M, (sw, sh), borderValue=(124, 116, 104))
+
+                    success, enc_aug = cv2.imencode(".jpg", skewed_np)
+                    if success:
+                        aug_dto = CropDTO(
+                            crop_id=f"onboard_{family_id}_{img_path.stem}_aug{aug_idx}.jpg",
+                            image_bytes=enc_aug.tobytes(),
+                            bbox=bbox,
+                            blur_score=0.0,
+                            aspect_ratio=float(sw) / float(max(1, sh))
+                        )
+                        aug_emb = self.embedder.extract_dto(aug_dto)
+                        aug_vec = aug_emb.vector
+
+                        references_to_save.append((
+                            class_id,
+                            old_class_id,
+                            str(img_path.resolve()),
+                            family_id,
+                            f"{source_image}_aug{aug_idx}",
+                            [bbox.x1, bbox.y1, bbox.x2, bbox.y2],
+                            aug_vec
+                        ))
+                        vectors_to_index.append(aug_vec)
+                        metadata_to_index.append({
+                            "crop_path": str(img_path.resolve()),
+                            "remapped_class_id": class_id,
+                            "old_class_id": old_class_id,
+                            "family_id": family_id,
+                            "source_image_name": f"{source_image}_aug{aug_idx}",
+                            "bbox": [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
+                        })
+            except Exception as aug_err:
+                logger.warning(f"[Pipeline 2] Low-quality shelf augmentation warning for {img_path.name}: {aug_err}")
 
         # Bulk save to SQLite database
         latest_version = 1

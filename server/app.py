@@ -155,6 +155,70 @@ def get_catalog():
                 return {"classes": by_training_id}
     return {"classes": {}}
 
+@app.post("/v1/catalog/delete")
+@app.delete("/v1/catalog/skus")
+def delete_catalog_skus(req: Optional[Any] = None, class_ids: Optional[List[int]] = None):
+    """Deletes single or multiple SKUs across SQLite database, catalog JSONs, in-memory index, and preview thumbnails."""
+    import shutil
+    target_ids = []
+    if req and hasattr(req, "class_ids"):
+        target_ids = req.class_ids
+    elif isinstance(req, dict) and "class_ids" in req:
+        target_ids = req["class_ids"]
+    elif class_ids:
+        target_ids = class_ids
+
+    if not target_ids:
+        raise HTTPException(status_code=400, detail="Must provide non-empty 'class_ids' list")
+
+    target_str_ids = [str(c) for c in target_ids]
+    deleted_vectors = 0
+
+    # 1. Purge from active SQLite database
+    if db_store_plugin and hasattr(db_store_plugin, "delete_classes"):
+        deleted_vectors = db_store_plugin.delete_classes(target_ids)
+
+    # 2. Evict from active in-memory search index
+    if retriever_plugin and hasattr(retriever_plugin, "remove_classes"):
+        retriever_plugin.remove_classes(target_ids)
+
+    # 3. Remove entries from mapping JSONs
+    catalog_json_paths = [
+        workspace_root / "configs" / "sku_mapping_v2.json",
+        workspace_root / "configs" / "sku_mapping.json"
+    ]
+    for cat_path in catalog_json_paths:
+        if cat_path.exists():
+            try:
+                with open(cat_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                classes_dict = data.get("classes", {})
+                for key in list(classes_dict.keys()):
+                    val = classes_dict[key]
+                    t_id = val.get("training_class_id")
+                    if key in target_str_ids or int(key) in target_ids or t_id in target_ids:
+                        del classes_dict[key]
+                with open(cat_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                pass
+
+    # 4. Remove exemplar thumbnail directories
+    preview_base = workspace_root / "data" / "processed" / "Sku Preview"
+    for cid in target_ids:
+        p_dir = preview_base / f"class_{cid}"
+        if p_dir.exists():
+            try:
+                shutil.rmtree(p_dir)
+            except Exception:
+                pass
+
+    return {
+        "status": "success",
+        "deleted_class_ids": target_ids,
+        "deleted_vectors_count": deleted_vectors
+    }
+
 # Global orchestrator and registry storage references
 orchestrator: Any = None
 detector_plugin: Any = None

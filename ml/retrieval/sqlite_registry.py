@@ -118,6 +118,29 @@ class SQLiteGalleryStore(BaseGalleryStore):
             pass
         return -1
 
+    def delete_classes(self, class_ids: List[int]) -> int:
+        """Completely purges all vector crop records belonging to specified class IDs.
+
+        Args:
+            class_ids: List of integer class IDs to delete.
+
+        Returns:
+            Number of rows deleted.
+        """
+        if not self.conn or not class_ids:
+            return 0
+        
+        placeholders = ",".join(["?"] * len(class_ids))
+        deleted_count = 0
+        with self.conn:
+            cursor = self.conn.execute(
+                f"DELETE FROM sku_crops WHERE remapped_class_id IN ({placeholders}) OR old_class_id IN ({placeholders})",
+                class_ids + class_ids
+            )
+            deleted_count = cursor.rowcount
+
+        return deleted_count
+
     def shutdown(self) -> None:
         """Safely closes connections."""
         if self.conn:

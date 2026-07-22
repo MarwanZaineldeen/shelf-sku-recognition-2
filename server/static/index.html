@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css?v=6.0">
+    <link rel="stylesheet" href="/static/style.css?v=7.0">
 </head>
 <body class="dark-theme">
     <!-- Header Navbar -->
@@ -259,13 +259,35 @@
         <!-- Tab 3: Commercial SKU Catalog Explorer -->
         <section id="tab-catalog-explorer" class="tab-content">
             <div class="glass-panel section-panel">
-                <div class="panel-header">
-                    <h2><i class="fa-solid fa-boxes-stacked"></i> Commercial FMCG Catalog</h2>
-                    <div class="search-box">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" id="catalog-search-input" placeholder="Search by SKU Title, Brand, or Class ID...">
+                <div class="panel-header" style="flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h2><i class="fa-solid fa-boxes-stacked"></i> Commercial FMCG Catalog</h2>
+                        <p class="panel-desc">Manage, search, and delete registered product SKU classes across the SQLite vector database.</p>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center; margin-left: auto;">
+                        <button id="btn-toggle-multi-select" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-square-check"></i> Multi-Select Mode
+                        </button>
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="catalog-search-input" placeholder="Search by SKU Title, Brand, or Class ID...">
+                        </div>
                     </div>
                 </div>
+
+                <!-- Bulk Selection Action Bar -->
+                <div id="catalog-bulk-bar" class="catalog-bulk-bar" style="display: none;">
+                    <div class="bulk-info">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span id="bulk-selected-count">0 SKUs Selected</span>
+                    </div>
+                    <div class="bulk-actions">
+                        <button id="btn-bulk-select-all" class="btn btn-secondary btn-sm"><i class="fa-solid fa-check-double"></i> Select All</button>
+                        <button id="btn-bulk-deselect" class="btn btn-secondary btn-sm"><i class="fa-solid fa-xmark"></i> Clear</button>
+                        <button id="btn-bulk-delete" class="btn btn-rose btn-sm"><i class="fa-solid fa-trash-can"></i> Delete Selected SKUs</button>
+                    </div>
+                </div>
+
                 <div class="catalog-grid" id="catalog-grid">
                     <!-- Product Catalog Cards rendered dynamically -->
                 </div>
@@ -539,6 +561,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="/static/app.js?v=6.0"></script>
+    <script src="/static/app.js?v=7.0"></script>
 </body>
 </html>

@@ -538,12 +538,111 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     };
 
-    // 7. Commercial Catalog Explorer Grid & Search Filter
+    // 7. Commercial Catalog Explorer Grid, Multi-Select & Deletion Engine
+    let isCatalogMultiSelectMode = false;
+    let selectedCatalogClasses = new Set();
+
+    const btnToggleMultiSelect = document.getElementById("btn-toggle-multi-select");
+    const bulkBar = document.getElementById("catalog-bulk-bar");
+    const bulkCountLabel = document.getElementById("bulk-selected-count");
+    const btnBulkSelectAll = document.getElementById("btn-bulk-select-all");
+    const btnBulkDeselect = document.getElementById("btn-bulk-deselect");
+    const btnBulkDelete = document.getElementById("btn-bulk-delete");
     const catalogSearchInput = document.getElementById("catalog-search-input");
+
+    if (btnToggleMultiSelect) {
+        btnToggleMultiSelect.addEventListener("click", () => {
+            isCatalogMultiSelectMode = !isCatalogMultiSelectMode;
+            btnToggleMultiSelect.className = isCatalogMultiSelectMode ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm";
+            btnToggleMultiSelect.innerHTML = isCatalogMultiSelectMode 
+                ? '<i class="fa-solid fa-square-check"></i> Multi-Select Active' 
+                : '<i class="fa-solid fa-square-check"></i> Multi-Select Mode';
+            
+            if (bulkBar) bulkBar.style.display = isCatalogMultiSelectMode ? "flex" : "none";
+            if (!isCatalogMultiSelectMode) {
+                selectedCatalogClasses.clear();
+            }
+            renderCatalogExplorer();
+        });
+    }
+
+    if (btnBulkSelectAll) {
+        btnBulkSelectAll.addEventListener("click", () => {
+            classList.forEach(info => selectedCatalogClasses.add(info.class_id));
+            updateBulkToolbarState();
+            renderCatalogExplorer();
+        });
+    }
+
+    if (btnBulkDeselect) {
+        btnBulkDeselect.addEventListener("click", () => {
+            selectedCatalogClasses.clear();
+            updateBulkToolbarState();
+            renderCatalogExplorer();
+        });
+    }
+
+    if (btnBulkDelete) {
+        btnBulkDelete.addEventListener("click", () => {
+            if (selectedCatalogClasses.size === 0) {
+                showToast("Please select at least one SKU class to delete.", "error");
+                return;
+            }
+            const idsToDelete = Array.from(selectedCatalogClasses);
+            if (confirm(`Are you sure you want to PERMANENTLY delete ${idsToDelete.length} selected SKU class(es)?\n\nThis will purge vector embeddings from SQLite and update catalog mappings.`)) {
+                executeCatalogSKUDeletion(idsToDelete);
+            }
+        });
+    }
+
     if (catalogSearchInput) {
         catalogSearchInput.addEventListener("input", (e) => {
             const query = e.target.value.trim().toLowerCase();
             renderCatalogExplorer(query);
+        });
+    }
+
+    function updateBulkToolbarState() {
+        if (bulkCountLabel) {
+            bulkCountLabel.innerText = `${selectedCatalogClasses.size} SKUs Selected`;
+        }
+    }
+
+    window.deleteSingleSKU = function(classId, displayName) {
+        if (confirm(`Delete SKU Class ${classId} ('${displayName}') from catalog?\n\nThis will purge its vector embeddings from the active SQLite database.`)) {
+            executeCatalogSKUDeletion([classId]);
+        }
+    };
+
+    function executeCatalogSKUDeletion(classIds) {
+        fetch("/v1/catalog/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ class_ids: classIds })
+        })
+        .then(res => res.json())
+        .then(data => {
+            showToast(`Successfully purged ${classIds.length} SKU(s) and ${data.deleted_vectors_count || 0} vector embedding(s)!`);
+            selectedCatalogClasses.clear();
+            updateBulkToolbarState();
+            
+            // Re-fetch catalog mapping and refresh grid + auto-increment class ID
+            fetch("/api/catalog")
+                .then(r => r.json())
+                .then(catData => {
+                    catalogMap = catData.classes || {};
+                    classList = Object.keys(catalogMap).map(cid => ({
+                        class_id: parseInt(cid),
+                        display_name: catalogMap[cid].display_name || `SKU Class ${cid}`,
+                        brand: catalogMap[cid].brand || "Unknown"
+                    }));
+                    classList.sort((a, b) => a.class_id - b.class_id);
+                    renderCatalogExplorer();
+                    fetchNextClassId();
+                });
+        })
+        .catch(err => {
+            showToast(`Failed to delete SKUs: ${err.message}`, "error");
         });
     }
 
@@ -567,18 +666,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
         filtered.forEach(info => {
             const card = document.createElement("div");
-            card.className = "catalog-card";
             const cid = info.class_id;
+            const isSelected = selectedCatalogClasses.has(cid);
+            card.className = isSelected ? "catalog-card selected" : "catalog-card";
+            
+            let checkboxHtml = "";
+            if (isCatalogMultiSelectMode) {
+                checkboxHtml = `<input type="checkbox" class="catalog-card-checkbox" ${isSelected ? 'checked' : ''} style="transform:scale(1.2);cursor:pointer;">`;
+            }
+
             card.innerHTML = `
+                <div class="catalog-card-actions">
+                    ${checkboxHtml}
+                    <button class="catalog-card-delete-btn" title="Delete SKU Class ${cid}" onclick="event.stopPropagation(); deleteSingleSKU(${cid}, '${info.display_name.replace(/'/g, "\\'")}')">
+                        <i class="fa-solid fa-trash-can" style="font-size:12px;"></i>
+                    </button>
+                </div>
                 <div class="catalog-img-box">
                     <img src="/v1/exemplars/${cid}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'120\\' height=\\'120\\'><rect width=\\'120\\' height=\\'120\\' fill=\\'%231e293b\\'/></svg>'">
                 </div>
-                <div class="catalog-meta">
+                <div class="catalog-meta" style="padding-right: 40px;">
                     <h5>[Class ${cid}] ${info.display_name}</h5>
                     <p>Brand: <strong>${info.brand || 'Lipton'}</strong></p>
                     <span class="badge badge-brand">Catalog SKU ${cid}</span>
                 </div>
             `;
+
+            if (isCatalogMultiSelectMode) {
+                card.style.cursor = "pointer";
+                card.addEventListener("click", () => {
+                    if (selectedCatalogClasses.has(cid)) {
+                        selectedCatalogClasses.delete(cid);
+                    } else {
+                        selectedCatalogClasses.add(cid);
+                    }
+                    updateBulkToolbarState();
+                    renderCatalogExplorer(query);
+                });
+            }
+
             grid.appendChild(card);
         });
     }

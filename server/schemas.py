@@ -10,6 +10,10 @@ class BBoxOut(BaseModel):
     confidence: float
 
 
+class DeleteSKUsRequest(BaseModel):
+    class_ids: List[int]
+
+
 class CommercialSKUOut(BaseModel):
     project_sku_id: str
     display_name: str
