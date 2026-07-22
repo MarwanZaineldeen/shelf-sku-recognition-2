@@ -119,7 +119,7 @@ def get_favicon():
 def get_dashboard():
     index_html = static_dir / "index.html"
     if index_html.exists():
-        return FileResponse(index_html)
+        return FileResponse(index_html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     return JSONResponse({"message": "Retail AI API running. UI index.html not found."})
 
 @app.get("/style.css")
