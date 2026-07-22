@@ -182,24 +182,27 @@ class AuditPipelineOrchestrator:
                     "exemplar_url": f"/v1/exemplars/{m.remapped_class_id}"
                 })
 
-            # ── Strategy 1: Dynamic 4-Region Shannon Entropy & Platt Calibrated Decision Gating ──
-            sim_scores = np.array([m.similarity for m in matches], dtype=np.float32)
-            total_sim = float(np.sum(sim_scores)) if np.sum(sim_scores) > 0 else 1e-12
-            probs = sim_scores / total_sim
+            # ── Static 4-Region Threshold Gating ─────────────────────────────────
+            #  Region A  ▸ S_vis >= 0.90 & delta >= 0.08  → Auto-Approve (<3ms, skips VLM)
+            #  Region B  ▸ 0.78 <= S_vis < 0.90           → VLM Rerank → Auto-Approve
+            #  Region C  ▸ 0.62 <= S_vis < 0.78           → VLM Pre-analyze → HITL Queue
+            #  Region D  ▸ S_vis < 0.62                   → Immediate Noise Rejection
+            # ─────────────────────────────────────────────────────────────────────
+            T_HIGH = 0.90       # Region A high confidence similarity threshold
+            T_MID = 0.78        # Region B mid confidence similarity threshold
+            T_LOW = 0.62        # Region C low confidence threshold (Region D boundary)
+            DELTA_T = 0.08      # Dominance margin gap (Top 1 similarity - Top 2 similarity)
+            PRECISION_P = 0.80  # Calibrated probability precision requirement for auto-annotation
 
-            # Shannon Entropy H (bits)
-            entropy = -float(np.sum([p * np.log2(p) for p in probs if p > 0]))
-            share1 = float(probs[0])
-            ratio12 = float(sim_scores[0] / sim_scores[1]) if (len(sim_scores) > 1 and sim_scores[1] > 0) else 2.0
             top_visual_sim = float(matches[0].similarity)
-
+            sim_diff = float(matches[0].similarity - matches[1].similarity) if len(matches) > 1 else 1.0
             best_match = matches[0]
 
             # 1. Platt scaling calibration
             probability = self.calibrator.calibrate(best_match.similarity, best_match.remapped_class_id)
 
-            # Region D: Immediate Noise / Non-Catalog Rejection (S_vis < 0.62 or Entropy H > 2.10 bits or P < 0.40)
-            if top_visual_sim < 0.62 or entropy > 2.10 or probability < 0.40:
+            # Region D: Immediate Noise / Non-Catalog Rejection (S_vis < 0.62 or P < 0.40)
+            if top_visual_sim < T_LOW or probability < 0.40:
                 pred = PredictionDTO(
                     crop_id=f"crop_{crop_idx+1}",
                     bbox=box,
@@ -215,12 +218,15 @@ class AuditPipelineOrchestrator:
                 hitl_queue.append(pred)
                 continue
 
-            # Check Region A (Fast Path): High Confidence ($P \ge 0.85$ or $S_{vis} \ge 0.90$) & Dominant Winner
-            is_region_a_fast_path = (probability >= 0.85 or top_visual_sim >= 0.90) and (ratio12 >= 1.15) and (entropy <= 1.20)
+            # Region A (Fast Path): High Similarity (S_vis >= 0.90) AND Dominant Margin (sim_diff >= 0.08)
+            is_region_a_fast_path = (top_visual_sim >= T_HIGH) and (sim_diff >= DELTA_T)
+
+            # Region C Indicator: Low-Mid Confidence (0.62 <= S_vis < 0.78)
+            is_region_c = (top_visual_sim < T_MID)
 
             vlm_verified_name = None
 
-            # Execute VLM for Region A (if tight tie ratio12 < 1.15), Region B, or Region C
+            # Execute VLM for Region A (if tight variant tie sim_diff < 0.08), Region B, or Region C
             if not is_region_a_fast_path:
                 if self.vlm_reranker is not None and getattr(self.vlm_reranker, "is_ready", False):
                     try:
@@ -242,15 +248,16 @@ class AuditPipelineOrchestrator:
                     except Exception as vlm_err:
                         print(f"[VLM Rerank] Error: {vlm_err}")
 
-            # Enforce Strict Precision Threshold: P >= 0.80 required for ALL auto-annotations
-            target_threshold = self.decision_policy.global_threshold  # Default 0.80
-
-            if probability >= target_threshold:
-                # Region A or Region B with high probability -> Auto-Approve
+            # Enforce 4-Region Final Automation Rules:
+            if is_region_a_fast_path and probability >= PRECISION_P:
+                automated = True
+                reject_reason = None
+            elif not is_region_c and probability >= PRECISION_P:
+                # Region B: Mid-high similarity (0.78 <= S_vis < 0.90) with high calibrated probability -> Auto-Approve
                 automated = True
                 reject_reason = None
             else:
-                # Region C: Calibrated probability P < 0.80. Pre-analyzed by VLM, but routed to HITL Queue for human review
+                # Region C: Low-mid similarity (0.62 <= S_vis < 0.78) or P < 0.80 -> Pre-analyzed by VLM, routed to HITL Queue
                 automated = False
                 reject_reason = "LOW_CONFIDENCE_HITL"
 
