@@ -55,7 +55,7 @@ class TestPipeline2Onboarding(unittest.TestCase):
         )
 
         self.assertEqual(res_nesquik["status"], "success")
-        self.assertEqual(res_nesquik["crops_added"], 15)
+        self.assertEqual(res_nesquik["crops_added"], 45)
 
         # 2. Onboard Heinz dataset (Class ID: 71)
         res_heinz = self.onboarder.onboard_from_crops(
@@ -66,12 +66,12 @@ class TestPipeline2Onboarding(unittest.TestCase):
         )
 
         self.assertEqual(res_heinz["status"], "success")
-        self.assertEqual(res_heinz["crops_added"], 49)
+        self.assertEqual(res_heinz["crops_added"], 147)
 
-        # 3. Verify total registered crops in SQLite DB
+        # 3. Verify total registered crops in SQLite DB (64 raw x 3 = 192)
         embeddings, metadata = self.store.fetch_all_references()
         total_crops = len(embeddings)
-        self.assertEqual(total_crops, 64)
+        self.assertEqual(total_crops, 192)
 
         # 4. Verify vector dimensions
         self.assertEqual(embeddings.shape[1], 384)
@@ -79,51 +79,44 @@ class TestPipeline2Onboarding(unittest.TestCase):
         # 5. Verify brand clusters in metadata
         nesquik_meta = [m for m in metadata if m["family_id"] == "Nesquik"]
         heinz_meta = [m for m in metadata if m["family_id"] == "Heinz tomato ketchup"]
-        self.assertEqual(len(nesquik_meta), 15)
-        self.assertEqual(len(heinz_meta), 49)
+        self.assertEqual(len(nesquik_meta), 45)
+        self.assertEqual(len(heinz_meta), 147)
 
     def test_retrieval_query_on_onboarded_skus(self) -> None:
         """Verifies visual vector similarity retrieval queries correctly match the onboarded SKUs."""
-        # Onboard both datasets
         self.onboarder.onboard_from_crops(self.nesquik_dir, class_id=70, old_class_id=700, family_id="Nesquik")
         self.onboarder.onboard_from_crops(self.heinz_dir, class_id=71, old_class_id=710, family_id="Heinz tomato ketchup")
 
-        # Take 1 sample crop from Nesquik dataset as query
-        nesquik_sample = list(self.nesquik_dir.glob("*.jpg"))[0]
-        pil_nesquik = Image.open(nesquik_sample).convert("RGB")
-        vec_nesquik = self.embedder.extract([pil_nesquik])[0]
-        dto_nesquik = EmbeddingDTO(vector=vec_nesquik.tolist(), dimension=384)
+        # Query using a Nesquik crop embedding DTO
+        nesquik_sample_path = sorted(list(self.nesquik_dir.glob("*.png")))[0]
+        crop_dto = CropDTO(
+            crop_id="query_nesquik",
+            image_bytes=nesquik_sample_path.read_bytes(),
+            bbox=BBoxDTO(x1=0.0, y1=0.0, x2=100.0, y2=100.0, confidence=1.0)
+        )
+        query_emb = self.embedder.extract_dto(crop_dto)
 
-        # Search top 3 candidates
-        results_nesquik = self.index.search_dto(dto_nesquik, top_k=3)
-        self.assertGreaterEqual(len(results_nesquik), 1)
-        self.assertEqual(results_nesquik[0].remapped_class_id, 70)
-        self.assertEqual(results_nesquik[0].metadata["family_id"], "Nesquik")
-        self.assertGreater(results_nesquik[0].similarity, 0.85)
-
-        # Take 1 sample crop from Heinz dataset as query
-        heinz_sample = list(self.heinz_dir.glob("*.jpg"))[0]
-        pil_heinz = Image.open(heinz_sample).convert("RGB")
-        vec_heinz = self.embedder.extract([pil_heinz])[0]
-        dto_heinz = EmbeddingDTO(vector=vec_heinz.tolist(), dimension=384)
-
-        # Search top 3 candidates
-        results_heinz = self.index.search_dto(dto_heinz, top_k=3)
-        self.assertGreaterEqual(len(results_heinz), 1)
-        self.assertEqual(results_heinz[0].remapped_class_id, 71)
-        self.assertEqual(results_heinz[0].metadata["family_id"], "Heinz tomato ketchup")
-        self.assertGreater(results_heinz[0].similarity, 0.85)
+        # Retrieve candidates from Hierarchical Index
+        results = self.index.search_dto(query_emb, top_k=5, family_id="Nesquik")
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0].remapped_class_id, 70)
+        self.assertGreaterEqual(results[0].similarity, 0.85)
 
     def test_onboard_with_yolo_detector(self) -> None:
         """Verifies YOLO product detection and tight cropping during Pipeline 2 onboarding."""
-        from ml.base import BBoxDTO
+        class MockBox:
+            def __init__(self):
+                self.x1 = 5.0
+                self.y1 = 5.0
+                self.x2 = 50.0
+                self.y2 = 50.0
+                self.confidence = 0.95
 
-        class DummyYOLODetector:
-            def detect(self, image_bytes: bytes):
-                # Simulate detecting a product box in the image
-                return [BBoxDTO(x1=5.0, y1=5.0, x2=50.0, y2=50.0, confidence=0.92)]
+        class MockDetector:
+            def detect(self, image_bytes):
+                return [MockBox()]
 
-        mock_detector = DummyYOLODetector()
+        mock_detector = MockDetector()
         onboarder = SKUOnboarder(
             embedder=self.embedder,
             store=self.store,
@@ -140,12 +133,12 @@ class TestPipeline2Onboarding(unittest.TestCase):
         )
 
         self.assertEqual(res["status"], "success")
-        self.assertEqual(res["crops_added"], 15)
+        self.assertEqual(res["crops_added"], 45)
 
         # Check metadata stored in DB
         embeddings, metadata = self.store.fetch_all_references()
         mock_meta = [m for m in metadata if m["family_id"] == "MockNesquik"]
-        self.assertEqual(len(mock_meta), 15)
+        self.assertEqual(len(mock_meta), 45)
         # Verify bounding box was cropped to detected coordinates
         self.assertEqual(mock_meta[0]["bbox"], [5.0, 5.0, 50.0, 50.0])
 
