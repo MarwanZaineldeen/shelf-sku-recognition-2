@@ -199,7 +199,13 @@ def delete_catalog_skus(payload: DeleteSKUsRequest):
             except Exception as e:
                 pass
 
-    # 4. Remove exemplar thumbnail directories
+    # 4. Evict from in-memory orchestrator mapping
+    if orchestrator and hasattr(orchestrator, "sku_mapping"):
+        for cid in target_ids:
+            orchestrator.sku_mapping.pop(cid, None)
+            orchestrator.sku_mapping.pop(str(cid), None)
+
+    # 5. Remove exemplar thumbnail directories
     preview_base = workspace_root / "data" / "processed" / "Sku Preview"
     for cid in target_ids:
         p_dir = preview_base / f"class_{cid}"
@@ -209,10 +215,12 @@ def delete_catalog_skus(payload: DeleteSKUsRequest):
             except Exception:
                 pass
 
+    new_next_id = compute_next_class_id()
     return {
         "status": "success",
         "deleted_class_ids": target_ids,
-        "deleted_vectors_count": deleted_vectors
+        "deleted_vectors_count": deleted_vectors,
+        "next_class_id": new_next_id
     }
 
 # Global orchestrator and registry storage references

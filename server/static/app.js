@@ -638,6 +638,12 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             updateBulkToolbarState();
             renderCatalogExplorer();
+
+            // Update New Class ID input box autonomously in real time
+            if (data && data.next_class_id !== undefined) {
+                const inputClassId = document.getElementById("onboard-class-id");
+                if (inputClassId) inputClassId.value = data.next_class_id;
+            }
             fetchNextClassId();
 
             // Re-sync with backend catalog mapping
