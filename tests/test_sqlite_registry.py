@@ -53,8 +53,8 @@ class TestSQLiteGalleryStore(unittest.TestCase):
         self.assertEqual(len(embeddings), 1)
         self.assertEqual(len(metadata), 1)
         
-        self.assertEqual(embeddings[0].dimension, 384)
-        self.assertTrue(np.allclose(embeddings[0].vector, [0.1] * 384))
+        self.assertEqual(len(embeddings[0]), 384)
+        self.assertTrue(np.allclose(embeddings[0], [0.1] * 384))
         
         self.assertEqual(metadata[0]["remapped_class_id"], 5)
         self.assertEqual(metadata[0]["old_class_id"], 12)

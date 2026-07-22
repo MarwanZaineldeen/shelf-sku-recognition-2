@@ -16,14 +16,8 @@ from pathlib import Path
 
 from ml.base import BaseEmbedder, CropDTO, EmbeddingDTO
 
-# Teammate's offline model weights location
-_PKG_MODEL_DIR = Path(
-    "d:/Marwan/ITI AI&ML/Transmid GP"
-    "/scratch/teammate_pkg"
-    "/dinov3_v2_exemplar_all_flat_offline_v1"
-    "/dinov3_v2_exemplar_all_flat_offline_v1"
-    "/model"
-)
+# Local workspace offline model weights location
+_PKG_MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "configs" / "weights" / "dinov3_vitb16"
 
 # Teammate's preprocessing constants (must match how DB embeddings were built)
 _IMAGE_SIZE = 224
@@ -55,13 +49,18 @@ class DINOv3Extractor(BaseEmbedder):
 
     def initialize(self, config: Dict[str, Any]) -> None:
         """Load DINOv3ViTModel from local safetensors via AutoModel."""
-        from transformers import AutoModel, AutoImageProcessor
+        try:
+            from transformers import DINOv3ViTModel, AutoImageProcessor
+            model_cls = DINOv3ViTModel
+        except ImportError:
+            from transformers import AutoModel, AutoImageProcessor
+            model_cls = AutoModel
 
         model_path = str(self._model_dir)
         self.processor = AutoImageProcessor.from_pretrained(
             model_path, local_files_only=True
         )
-        self.model = AutoModel.from_pretrained(
+        self.model = model_cls.from_pretrained(
             model_path, local_files_only=True
         )
         self.model.to(self.device).eval()

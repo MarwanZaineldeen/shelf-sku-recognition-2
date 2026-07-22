@@ -73,6 +73,19 @@ class SQLiteGalleryStore(BaseGalleryStore):
         except Exception as e:
             return False, f"Database check failed: {str(e)}"
 
+    def get_max_class_id(self) -> int:
+        """Returns the maximum remapped_class_id present in active database, or -1 if empty."""
+        if not self.conn:
+            return -1
+        try:
+            cursor = self.conn.execute("SELECT MAX(remapped_class_id) FROM sku_crops")
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                return int(row[0])
+        except Exception:
+            pass
+        return -1
+
     def shutdown(self) -> None:
         """Safely closes connections."""
         if self.conn:

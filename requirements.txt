@@ -5,3 +5,7 @@ opencv-python
 scikit-learn
 tabulate
 ultralytics
+prometheus-fastapi-instrumentator
+prometheus-client
+prometheus-fastapi-instrumentator
+prometheus-client

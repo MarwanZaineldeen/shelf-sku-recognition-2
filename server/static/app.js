@@ -18,9 +18,30 @@ document.addEventListener("DOMContentLoaded", () => {
     const ctx = canvas ? canvas.getContext("2d") : null;
     const canvasLoader = document.getElementById("canvas-loader");
 
-    // Tab Navigation
-    const navTabs = document.querySelectorAll(".nav-tab");
-    const tabContents = document.querySelectorAll(".tab-content");
+    // Auto-Increment Class ID Helper
+    function fetchNextClassId() {
+        const inputClassId = document.getElementById("onboard-class-id");
+        if (!inputClassId) return;
+        inputClassId.placeholder = "Auto-generating...";
+        fetch("/v1/next-class-id")
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.next_class_id !== undefined) {
+                    inputClassId.value = data.next_class_id;
+                }
+            })
+            .catch(err => {
+                console.warn("Could not fetch next class ID:", err);
+            });
+    }
+
+    const btnRefreshClassId = document.getElementById("btn-refresh-class-id");
+    if (btnRefreshClassId) {
+        btnRefreshClassId.addEventListener("click", fetchNextClassId);
+    }
+
+    // Initial fetch of next Class ID
+    fetchNextClassId();
 
     navTabs.forEach(tab => {
         tab.addEventListener("click", () => {
@@ -31,6 +52,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const target = tab.getAttribute("data-tab");
             const tabEl = document.getElementById(`tab-${target}`);
             if (tabEl) tabEl.classList.add("active");
+            if (target === "sku-onboarding") {
+                fetchNextClassId();
+            }
         });
     });
 
@@ -555,5 +579,218 @@ document.addEventListener("DOMContentLoaded", () => {
         canvas.height = 1632;
         ctx.fillStyle = "#0f172a";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // 8. Pipeline 2: New SKU Onboarding UI Handlers
+    const onboardModeBtns = document.querySelectorAll(".onboard-mode-btn");
+    const onboardFilesContainer = document.getElementById("onboard-files-container");
+    const onboardFolderContainer = document.getElementById("onboard-folder-container");
+    const onboardDropzone = document.getElementById("onboard-dropzone");
+    const onboardFileInput = document.getElementById("onboard-file-input");
+    const onboardPreviewGrid = document.getElementById("onboard-preview-grid");
+    const btnSubmitOnboard = document.getElementById("btn-submit-onboard");
+
+    let onboardSelectedFiles = [];
+    let onboardActiveMode = "files";
+
+    if (onboardModeBtns) {
+        onboardModeBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                onboardModeBtns.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                onboardActiveMode = btn.getAttribute("data-mode");
+
+                if (onboardActiveMode === "files") {
+                    if (onboardFilesContainer) onboardFilesContainer.style.display = "block";
+                    if (onboardFolderContainer) onboardFolderContainer.style.display = "none";
+                } else {
+                    if (onboardFilesContainer) onboardFilesContainer.style.display = "none";
+                    if (onboardFolderContainer) onboardFolderContainer.style.display = "block";
+                }
+            });
+        });
+    }
+
+    if (onboardDropzone && onboardFileInput) {
+        onboardDropzone.addEventListener("click", () => onboardFileInput.click());
+
+        onboardDropzone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            onboardDropzone.classList.add("dragover");
+        });
+
+        onboardDropzone.addEventListener("dragleave", () => {
+            onboardDropzone.classList.remove("dragover");
+        });
+
+        onboardDropzone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            onboardDropzone.classList.remove("dragover");
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleOnboardFileSelection(e.dataTransfer.files);
+            }
+        });
+
+        onboardFileInput.addEventListener("change", (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                handleOnboardFileSelection(e.target.files);
+            }
+        });
+    }
+
+    function handleOnboardFileSelection(fileList) {
+        onboardSelectedFiles = Array.from(fileList);
+        const badge = document.getElementById("crop-count-badge");
+        if (badge) {
+            badge.innerText = `${onboardSelectedFiles.length} Crops Selected (${onboardSelectedFiles.length >= 10 && onboardSelectedFiles.length <= 50 ? 'Valid' : 'Need 10-50'})`;
+            badge.className = onboardSelectedFiles.length >= 10 && onboardSelectedFiles.length <= 50 ? 'badge badge-emerald' : 'badge badge-rose';
+        }
+
+        if (!onboardPreviewGrid) return;
+        onboardPreviewGrid.innerHTML = "";
+
+        onboardSelectedFiles.slice(0, 30).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = document.createElement("img");
+                img.className = "drop-preview-thumb";
+                img.src = e.target.result;
+                onboardPreviewGrid.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    if (btnSubmitOnboard) {
+        btnSubmitOnboard.addEventListener("click", () => {
+            const classId = document.getElementById("onboard-class-id").value;
+            const brand = document.getElementById("onboard-brand").value;
+            const productName = document.getElementById("onboard-product-name").value;
+            const variant = document.getElementById("onboard-variant").value;
+            const size = document.getElementById("onboard-size").value;
+            const packType = document.getElementById("onboard-pack-type").value;
+            const displayTitle = document.getElementById("onboard-display-title").value;
+            const notes = document.getElementById("onboard-notes").value;
+            const folderPath = document.getElementById("onboard-folder-path").value;
+            const valShelfInput = document.getElementById("onboard-val-shelf-input");
+
+            if (!brand || !productName) {
+                alert("Please fill in Brand Name and Product Name.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("class_id", classId);
+            formData.append("old_class_id", classId);
+            formData.append("brand", brand);
+            formData.append("product_name", productName);
+            formData.append("variant", variant || "");
+            formData.append("size", size || "");
+            formData.append("pack_type", packType || "box");
+            formData.append("display_name", displayTitle || `${brand} ${productName}`);
+            formData.append("notes", notes || "");
+
+            if (onboardActiveMode === "folder") {
+                if (!folderPath || !folderPath.trim()) {
+                    alert("Please enter a valid server folder path.");
+                    return;
+                }
+                formData.append("folder_path", folderPath.trim());
+            } else {
+                if (!onboardSelectedFiles || onboardSelectedFiles.length < 10 || onboardSelectedFiles.length > 50) {
+                    alert(`Please select between 10 and 50 reference product crops of the new SKU.\n(Current selection: ${onboardSelectedFiles ? onboardSelectedFiles.length : 0} files)`);
+                    return;
+                }
+                formData.append("pack_count", `${onboardSelectedFiles.length} crops`);
+                onboardSelectedFiles.forEach(file => {
+                    formData.append("reference_images", file);
+                });
+            }
+
+            if (valShelfInput && valShelfInput.files && valShelfInput.files.length > 0) {
+                formData.append("validation_shelf_image", valShelfInput.files[0]);
+            }
+
+            btnSubmitOnboard.disabled = true;
+            btnSubmitOnboard.innerHTML = '<div class="spinner"></div> Computing Feature Embeddings & Running Shelf Audit...';
+
+            fetch("/v1/onboard/sku", {
+                method: "POST",
+                body: formData
+            })
+                .then(async res => {
+                    const text = await res.text();
+                    let resData;
+                    try {
+                        resData = JSON.parse(text);
+                    } catch (e) {
+                        throw new Error(text || `Server Error ${res.status}`);
+                    }
+                    if (!res.ok) {
+                        throw new Error(resData.detail || `HTTP error ${res.status}`);
+                    }
+                    return resData;
+                })
+                .then(data => {
+                    btnSubmitOnboard.disabled = false;
+                    btnSubmitOnboard.innerHTML = '<i class="fa-solid fa-rocket"></i> Run Pipeline 2 Onboarding & Shelf Audit';
+
+                    const placeholder = document.getElementById("onboard-status-placeholder");
+                    const resultsPanel = document.getElementById("onboard-results-panel");
+                    if (placeholder) placeholder.style.display = "none";
+                    if (resultsPanel) resultsPanel.style.display = "block";
+
+                    document.getElementById("res-crops-count").innerText = data.crops_added || 0;
+                    document.getElementById("res-db-version").innerText = `v${data.version || 1}`;
+                    document.getElementById("res-class-id").innerText = classId;
+
+                    // Render Metadata Summary Card
+                    const meta = data.metadata || {};
+                    document.getElementById("meta-res-brand").innerText = meta.brand || brand;
+                    document.getElementById("meta-res-product").innerText = meta.product_name || productName;
+                    document.getElementById("meta-res-variant").innerText = meta.variant || "N/A";
+                    document.getElementById("meta-res-size").innerText = meta.size || "N/A";
+                    document.getElementById("meta-res-packtype").innerText = meta.pack_type || packType;
+                    document.getElementById("meta-res-evidence").innerText = meta.evidence || "Onboarded via Web UI";
+
+                    // Render Validation Shelf Benchmark Audit
+                    const valBox = document.getElementById("val-audit-box");
+                    if (data.validation_audit) {
+                        const val = data.validation_audit;
+                        if (valBox) valBox.style.display = "block";
+                        document.getElementById("val-facings-count").innerText = `${val.facings_detected} Facings`;
+                        document.getElementById("val-mean-sim").innerText = `${(val.mean_similarity * 100).toFixed(1)}%`;
+                        
+                        const recBox = document.getElementById("val-recommendation-box");
+                        const recText = document.getElementById("val-recommendation-text");
+                        if (recText) recText.innerText = val.recommendation;
+                        if (recBox) {
+                            recBox.className = val.pass_validation ? "recommendation-callout" : "recommendation-callout warning";
+                        }
+                    } else {
+                        if (valBox) valBox.style.display = "none";
+                    }
+
+                    // Refresh Commercial Catalog Explorer
+                    fetch("/api/catalog")
+                        .then(r => r.json())
+                        .then(catData => {
+                            catalogMap = catData.classes || {};
+                            classList = Object.keys(catalogMap).map(cid => ({
+                                class_id: parseInt(cid),
+                                display_name: catalogMap[cid].display_name || `SKU Class ${cid}`,
+                                brand: catalogMap[cid].brand || "Unknown"
+                            }));
+                            classList.sort((a, b) => a.class_id - b.class_id);
+                            renderCatalogExplorer();
+                            fetchNextClassId();
+                        });
+                })
+                .catch(err => {
+                    btnSubmitOnboard.disabled = false;
+                    btnSubmitOnboard.innerHTML = '<i class="fa-solid fa-rocket"></i> Run Pipeline 2 Onboarding & Shelf Audit';
+                    alert(`Pipeline 2 Onboarding Validation Error:\n${err.message}`);
+                });
+        });
     }
 });

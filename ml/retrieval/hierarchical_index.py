@@ -33,8 +33,11 @@ class HierarchicalCosineIndex(VectorIndex, BaseRetriever):
             embeddings, metadata = store.fetch_all_references()
             store.shutdown()
 
-            if embeddings:
-                vectors = np.array([e.vector for e in embeddings], dtype=np.float32)
+            if len(embeddings) > 0:
+                if isinstance(embeddings, np.ndarray):
+                    vectors = embeddings
+                else:
+                    vectors = np.array([e.vector for e in embeddings], dtype=np.float32)
                 self.add(vectors, metadata)
 
     def health_check(self) -> Tuple[bool, str]:

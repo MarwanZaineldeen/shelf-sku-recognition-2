@@ -35,6 +35,9 @@
                 <button class="nav-tab" data-tab="catalog-explorer">
                     <i class="fa-solid fa-boxes-stacked"></i> Commercial Catalog (67 SKUs)
                 </button>
+                <button class="nav-tab nav-tab-highlight" data-tab="sku-onboarding">
+                    <i class="fa-solid fa-plus-circle"></i> + Add New SKU (Pipeline 2)
+                </button>
                 <button class="nav-tab" data-tab="latency-benchmark">
                     <i class="fa-solid fa-chart-line"></i> Latency & Architecture
                 </button>
@@ -257,19 +260,219 @@
         <section id="tab-catalog-explorer" class="tab-content">
             <div class="glass-panel section-panel">
                 <div class="panel-header">
-                    <h2><i class="fa-solid fa-boxes-stacked"></i> Commercial FMCG Catalog (67 Product Categories)</h2>
+                    <h2><i class="fa-solid fa-boxes-stacked"></i> Commercial FMCG Catalog</h2>
                     <div class="search-box">
                         <i class="fa-solid fa-magnifying-glass"></i>
                         <input type="text" id="catalog-search-input" placeholder="Search by SKU Title, Brand, or Class ID...">
                     </div>
                 </div>
                 <div class="catalog-grid" id="catalog-grid">
-                    <!-- 67 Product Catalog Cards rendered dynamically -->
+                    <!-- Product Catalog Cards rendered dynamically -->
                 </div>
             </div>
         </section>
 
-        <!-- Tab 4: Latency & Architecture Benchmark -->
+        <!-- Tab 4: New SKU Onboarding (Pipeline 2) -->
+        <section id="tab-sku-onboarding" class="tab-content">
+            <div class="glass-panel section-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-plus-circle"></i> Pipeline 2: Few-Shot New SKU Onboarding Engine</h2>
+                    <p class="panel-desc">Onboard 10–50 reference crop examples for a new SKU product. Captures commercial catalog metadata, extracts visual feature embeddings, updates SQLite vector database & brand clusters, and runs a live validation shelf audit.</p>
+                </div>
+
+                <div class="onboard-grid">
+                    <!-- Form Controls Card -->
+                    <div class="onboard-form-card glass-panel">
+                        <h3><i class="fa-solid fa-sliders"></i> Commercial Catalog Metadata</h3>
+                        
+                        <div class="form-row-2col">
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-hashtag"></i> New Class ID <span class="badge-auto-inc" style="font-size:11px; font-weight:600; color:var(--emerald); background:rgba(16,185,129,0.15); padding:2px 6px; border-radius:4px; margin-left:4px;">Auto-Incremented</span> <span class="req">*</span>:</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="number" id="onboard-class-id" class="custom-input" placeholder="Auto-generating..." readonly style="font-weight: bold; color: var(--emerald); cursor: not-allowed;">
+                                    <button type="button" id="btn-refresh-class-id" class="btn-action" title="Refresh Next Class ID" style="padding: 0 12px;"><i class="fa-solid fa-rotate-right"></i></button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-copyright"></i> Brand Name <span class="req">*</span>:</label>
+                                <input type="text" id="onboard-brand" class="custom-input" placeholder="e.g. Nesquik, Heinz" value="Nesquik">
+                            </div>
+                        </div>
+
+                        <div class="form-row-2col">
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-box-open"></i> Product Name <span class="req">*</span>:</label>
+                                <input type="text" id="onboard-product-name" class="custom-input" placeholder="e.g. Chocolate Drink Mix" value="Chocolate Drink Mix">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-layer-group"></i> Variant / Flavor:</label>
+                                <input type="text" id="onboard-variant" class="custom-input" placeholder="e.g. Cocoa Powder" value="Cocoa Powder">
+                            </div>
+                        </div>
+
+                        <div class="form-row-2col">
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-weight-hanging"></i> Size / Weight:</label>
+                                <input type="text" id="onboard-size" class="custom-input" placeholder="e.g. 400g" value="400g">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-cubes"></i> Pack Type:</label>
+                                <select id="onboard-pack-type" class="custom-input">
+                                    <option value="box">Box / Carton</option>
+                                    <option value="pouch/container" selected>Pouch / Container</option>
+                                    <option value="bottle">Bottle</option>
+                                    <option value="can">Can / Tin</option>
+                                    <option value="bag">Bag</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fa-solid fa-font"></i> Full Commercial Display Title:</label>
+                            <input type="text" id="onboard-display-title" class="custom-input" placeholder="e.g. Nesquik Chocolate Drink Mix - 400g Pouch" value="Nesquik Chocolate Drink Mix - 400g Pouch">
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fa-solid fa-note-sticky"></i> Description & Notes:</label>
+                            <input type="text" id="onboard-notes" class="custom-input" placeholder="e.g. Rich chocolate flavoured milk powder drink mix" value="Rich chocolate flavoured milk powder drink mix">
+                        </div>
+
+                        <!-- Mode Selection Tabs -->
+                        <div class="onboard-mode-selector">
+                            <label class="control-label"><i class="fa-solid fa-images"></i> Reference Product Crops <span class="badge badge-purple" id="crop-count-badge">10 - 50 Crops Required</span>:</label>
+                            <div class="btn-group width-100">
+                                <button type="button" class="onboard-mode-btn active" data-mode="files"><i class="fa-solid fa-file-image"></i> Upload 10-50 Reference Crops</button>
+                                <button type="button" class="onboard-mode-btn" data-mode="folder"><i class="fa-solid fa-folder"></i> Server Folder Path</button>
+                            </div>
+                        </div>
+
+                        <!-- Mode A: File Dropzone -->
+                        <div id="onboard-files-container" class="onboard-mode-container active">
+                            <div class="file-dropzone" id="onboard-dropzone">
+                                <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+                                <span class="drop-title">Drag & Drop Product Crops Here (10 to 50 Images)</span>
+                                <span class="drop-sub">Product crops ONLY of the new SKU (.jpg, .png)</span>
+                                <input type="file" id="onboard-file-input" multiple accept="image/*" style="display:none;">
+                            </div>
+                            <div class="drop-preview-grid" id="onboard-preview-grid"></div>
+                        </div>
+
+                        <!-- Mode B: Folder Path Input -->
+                        <div id="onboard-folder-container" class="onboard-mode-container" style="display:none;">
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-folder-open"></i> Server Folder Path:</label>
+                                <input type="text" id="onboard-folder-path" class="custom-input" placeholder="e.g. data/Nesquik">
+                            </div>
+                        </div>
+
+                        <!-- Section 3: Validation Shelf Image -->
+                        <div class="form-group val-shelf-section">
+                            <label class="control-label"><i class="fa-solid fa-camera"></i> Validation Shelf Image (Optional Benchmark):</label>
+                            <div class="val-shelf-upload-box">
+                                <input type="file" id="onboard-val-shelf-input" accept="image/*" class="custom-file-input">
+                                <span class="val-shelf-sub">Upload 1 shelf image containing facings of this SKU to validate recognition quality.</span>
+                            </div>
+                        </div>
+
+                        <button id="btn-submit-onboard" class="btn btn-primary btn-glow btn-block">
+                            <i class="fa-solid fa-rocket"></i> Run Pipeline 2 Onboarding & Shelf Audit
+                        </button>
+                    </div>
+
+                    <!-- Live Pipeline Status Card -->
+                    <div class="onboard-status-card glass-panel">
+                        <h3><i class="fa-solid fa-microchip"></i> Onboarding Diagnostic & Benchmark</h3>
+                        
+                        <div id="onboard-status-placeholder" class="empty-state">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <p>Fill out the SKU catalog metadata, select 10–50 reference crops, and submit to view live vector embedding & shelf validation benchmark metrics.</p>
+                        </div>
+
+                        <div id="onboard-results-panel" style="display:none;">
+                            <div class="status-banner success" id="res-status-banner">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <div>
+                                    <h4 id="res-status-title">Onboarding Completed Successfully!</h4>
+                                    <p id="res-status-sub">Registered into commercial catalog and SQLite vector gallery.</p>
+                                </div>
+                            </div>
+
+                            <div class="result-stats-grid">
+                                <div class="stat-box">
+                                    <span class="stat-label">Crops Embedded</span>
+                                    <span class="stat-val emerald" id="res-crops-count">15</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">SQLite Version</span>
+                                    <span class="stat-val cyan" id="res-db-version">v3</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">Vector Dim</span>
+                                    <span class="stat-val indigo" id="res-vector-dim">384-D</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">Class ID</span>
+                                    <span class="stat-val purple" id="res-class-id">70</span>
+                                </div>
+                            </div>
+
+                            <!-- Registered Metadata Summary Card -->
+                            <div class="meta-registered-box glass-panel">
+                                <h4><i class="fa-solid fa-id-card"></i> Registered Catalog Card</h4>
+                                <div class="meta-details-grid">
+                                    <div><strong>Brand:</strong> <span id="meta-res-brand">Nesquik</span></div>
+                                    <div><strong>Product:</strong> <span id="meta-res-product">Chocolate Drink Mix</span></div>
+                                    <div><strong>Variant:</strong> <span id="meta-res-variant">Cocoa Powder</span></div>
+                                    <div><strong>Size:</strong> <span id="meta-res-size">400g</span></div>
+                                    <div><strong>Pack Type:</strong> <span id="meta-res-packtype">pouch/container</span></div>
+                                    <div><strong>Evidence:</strong> <span id="meta-res-evidence">Onboarded via Web UI</span></div>
+                                </div>
+                            </div>
+
+                            <!-- Validation Shelf Audit Benchmark Card -->
+                            <div class="shelf-val-box glass-panel" id="val-audit-box" style="margin-top: 16px;">
+                                <h4><i class="fa-solid fa-shield-halved"></i> Automated Shelf Recognition Audit</h4>
+                                <div id="val-audit-content">
+                                    <div class="val-audit-row">
+                                        <span>Facings Recognized on Shelf:</span>
+                                        <strong id="val-facings-count" class="highlight-emerald">3 Facings</strong>
+                                    </div>
+                                    <div class="val-audit-row">
+                                        <span>Mean Visual Similarity ($S_{\text{vis}}$):</span>
+                                        <strong id="val-mean-sim" class="highlight-cyan">91.4%</strong>
+                                    </div>
+                                    <div class="recommendation-callout" id="val-recommendation-box">
+                                        <i class="fa-solid fa-lightbulb"></i>
+                                        <span id="val-recommendation-text">Sufficient Examples — SKU is ready for automated shelf audit.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pipeline-flow-steps" style="margin-top: 16px;">
+                                <div class="flow-step step-done">
+                                    <i class="fa-solid fa-check"></i>
+                                    <span>Quality Gate Audit Passed</span>
+                                </div>
+                                <div class="flow-step step-done">
+                                    <i class="fa-solid fa-check"></i>
+                                    <span>384-D L2 Feature Embeddings Computed</span>
+                                </div>
+                                <div class="flow-step step-done">
+                                    <i class="fa-solid fa-check"></i>
+                                    <span>SQLite Reference Registry & Catalog JSON Saved</span>
+                                </div>
+                                <div class="flow-step step-done">
+                                    <i class="fa-solid fa-check"></i>
+                                    <span>Hierarchical Brand Cluster Partition Active</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 5: Latency & Architecture Benchmark -->
         <section id="tab-latency-benchmark" class="tab-content">
             <div class="glass-panel section-panel">
                 <div class="panel-header">

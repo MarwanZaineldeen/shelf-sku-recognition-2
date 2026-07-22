@@ -77,3 +77,5 @@ class OnboardResponse(BaseModel):
     crops_added: int
     class_id: Optional[int] = None
     message: Optional[str] = None
+    metadata: Optional[dict] = None
+    validation_audit: Optional[dict] = None

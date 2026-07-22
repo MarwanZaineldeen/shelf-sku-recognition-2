@@ -1207,6 +1207,24 @@
       "source_image_count": 18,
       "evidence": "Manually Reviewed",
       "notes": ""
+    },
+    "99": {
+      "raw_class_id": "99",
+      "training_class_id": 99,
+      "project_sku_id": "TM_RAW_099",
+      "brand": "test_family",
+      "product_name": "Product (Class 99)",
+      "variant": "",
+      "size": "",
+      "pack_count": "1 crops",
+      "pack_type": "box",
+      "display_name": "test_family Product (Class 99)",
+      "status": "verified",
+      "identity_confidence": "A",
+      "instance_count": 1,
+      "source_image_count": 1,
+      "evidence": "Onboarded via Web UI (Pipeline 2)",
+      "notes": "Dynamic Onboarding"
     }
   }
 }
