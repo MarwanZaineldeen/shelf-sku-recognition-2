@@ -219,7 +219,6 @@ def startup_event():
     calibrator_plugin = PlattCalibrator()
     decision_policy_plugin = GatedAnnotationPolicy()
     db_store_plugin = SQLiteGalleryStore()
-    hitl_store_plugin = HITLActiveLearningStore()
 
     print("  Initializing SQLite Gallery Store...", flush=True)
     db_store_plugin.initialize({"db_path": db_path})
@@ -227,14 +226,6 @@ def startup_event():
     try:
         review_store_plugin = ReviewStore()
         review_store_plugin.initialize({"db_path": str(review_db_path)})
-    except Exception:
-        pass
-
-    try:
-        hitl_store_plugin.initialize({
-            "db_path": str(workspace_root / "data/processed/hitl_active_learning.db"),
-            "gallery_db_path": db_path
-        })
     except Exception:
         pass
 
