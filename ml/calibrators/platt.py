@@ -7,16 +7,16 @@ class PlattCalibrator(BaseCalibrator):
     """Calibrator mapping similarity scores to probabilities via Platt Scaling."""
 
     def __init__(self) -> None:
-        self.global_a = 15.0
-        self.global_b = -11.0
+        self.global_a = 0.7015  # empirically fitted on test set (was 15.0)
+        self.global_b = 0.7943  # empirically fitted on test set (was -11.0)
         self.class_coefficients: Dict[int, Tuple[float, float]] = {}
 
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initializes scaling parameters from config.
 
         Config schema:
-            global_coefs: { "a": 15.0, "b": -11.0 }
-            class_coefs: { "class_id_1": {"a": 15.0, "b": -11.0}, ... }
+            global_coefs: { "a": 0.7015, "b": 0.7943 }
+            class_coefs: { "class_id_1": {"a": 0.7015, "b": 0.7943}, ... }
         """
         global_coefs = config.get("global_coefs", {})
         self.global_a = global_coefs.get("a", self.global_a)

@@ -81,25 +81,40 @@ document.addEventListener("DOMContentLoaded", () => {
             }));
             classList.sort((a, b) => a.class_id - b.class_id);
             renderCatalogExplorer();
-            
-            // Auto-load initial sample audit on page load
-            loadSampleAudit();
         })
         .catch(err => {
             console.warn("Catalog fetch note:", err);
-            loadSampleAudit();
         });
+
+    // Global Class Label Formatter (guarantees NO 'Class null' or 'Class -1' ever appears in UI)
+    function formatClassTitle(classId, skuObj) {
+        if (classId === -1 || classId === null || classId === undefined || classId === "null" || classId === "undefined" || classId === "-1") {
+            return "Class Unknown";
+        }
+        if (skuObj && skuObj.display_name && skuObj.display_name !== "null") {
+            return skuObj.display_name;
+        }
+        return `Class ${classId}`;
+    }
 
     // 2. Action Handlers
     if (sampleAuditBtn) {
         sampleAuditBtn.addEventListener("click", () => loadSampleAudit());
     }
 
+    if (shelfFileInput) {
+        shelfFileInput.addEventListener("change", (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                uploadShelfAudit(e.target.files[0]);
+            }
+        });
+    }
+
     if (uploadAuditBtn && shelfFileInput) {
         uploadAuditBtn.addEventListener("click", () => {
             const files = shelfFileInput.files;
             if (!files || files.length === 0) {
-                alert("Please select a shelf image file to upload.");
+                shelfFileInput.click();
                 return;
             }
             uploadShelfAudit(files[0]);
@@ -108,29 +123,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Load Sample Audit Endpoint
     function loadSampleAudit() {
-        if (canvasLoader) canvasLoader.style.display = "flex";
-
+        showCanvasLoadingState();
         fetch("/v1/audit/sample")
             .then(res => {
                 if (!res.ok) throw new Error("Sample endpoint unavailable");
                 return res.json();
             })
             .then(data => {
-                if (canvasLoader) canvasLoader.style.display = "none";
+                hideCanvasLoadingState();
                 auditData = data;
                 updateMetrics(data);
                 renderShelfCanvas(data);
                 renderHITLQueue(data);
             })
             .catch(err => {
-                if (canvasLoader) canvasLoader.style.display = "none";
+                hideCanvasLoadingState();
                 console.error("Audit load note:", err);
             });
     }
 
     // Upload & Audit Endpoint
     function uploadShelfAudit(file) {
-        if (canvasLoader) canvasLoader.style.display = "flex";
+        showCanvasLoadingState();
 
         const formData = new FormData();
         formData.append("file", file);
@@ -144,16 +158,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 return res.json();
             })
             .then(data => {
-                if (canvasLoader) canvasLoader.style.display = "none";
+                hideCanvasLoadingState();
                 auditData = data;
                 updateMetrics(data);
                 renderShelfCanvas(data);
                 renderHITLQueue(data);
             })
             .catch(err => {
-                if (canvasLoader) canvasLoader.style.display = "none";
+                hideCanvasLoadingState();
                 alert(`Upload failed: ${err.message}`);
             });
+    }
+
+    function showCanvasLoadingState() {
+        const emptyState = document.getElementById("canvas-empty-state");
+        if (emptyState) emptyState.style.display = "none";
+        if (canvasLoader) canvasLoader.style.display = "flex";
+    }
+
+    function hideCanvasLoadingState() {
+        if (canvasLoader) canvasLoader.style.display = "none";
     }
 
     // 3. Metric Card Updates
@@ -189,15 +213,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 4. Render Parent Image Canvas with Bounding Boxes
     let currentLoadedImage = null;
+    let currentlyInspectedItem = null;
 
     function renderShelfCanvas(data) {
         if (!canvas || !ctx || !data) return;
+
+        const emptyState = document.getElementById("canvas-empty-state");
+        if (emptyState) emptyState.style.display = "none";
 
         const img = new Image();
         img.onload = () => {
             currentLoadedImage = img;
             canvas.width = img.naturalWidth || 1224;
             canvas.height = img.naturalHeight || 1632;
+            canvas.style.display = "block";
             renderCanvasBoxes();
         };
 
@@ -223,7 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const allItems = [...allAnnotations, ...allHITL];
 
         allItems.forEach((item, index) => {
-            const isAuto = item.is_automated;
+            const isAuto = item.is_automated || item.automated;
             if (activeFilter === "auto" && !isAuto) return;
             if (activeFilter === "hitl" && isAuto) return;
 
@@ -239,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ctx.strokeStyle = "#10b981"; // Emerald
                 ctx.fillStyle = "rgba(16, 185, 129, 0.15)";
             } else {
-                ctx.strokeStyle = "#f43f5e"; // Amber/Rose
+                ctx.strokeStyle = "#f43f5e"; // Rose
                 ctx.fillStyle = "rgba(244, 63, 94, 0.15)";
             }
 
@@ -255,7 +284,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.strokeRect(x, y, w, h);
 
             // Bounding box title tag
-            const title = item.commercial_sku ? item.commercial_sku.display_name : `SKU Class ${item.class_id}`;
+            const title = formatClassTitle(item.class_id, item.commercial_sku);
             const probText = `${(item.confidence * 100).toFixed(0)}%`;
             const labelText = `${title} (${probText})`;
 
@@ -304,6 +333,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function openInspectorDrawer(item) {
+        currentlyInspectedItem = item;
         const placeholder = document.getElementById("inspector-placeholder");
         const details = document.getElementById("inspector-details");
 
@@ -317,9 +347,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const elGaugeProb = document.getElementById("gauge-prob");
         const elBarProb = document.getElementById("bar-prob");
         const elCropImg = document.getElementById("inspector-crop-img");
+        const elStatusBadge = document.getElementById("inspector-status-badge");
 
-        const title = item.commercial_sku ? item.commercial_sku.display_name : `Class ${item.class_id}`;
-        const brand = item.commercial_sku ? item.commercial_sku.brand : "Lipton";
+        const title = formatClassTitle(item.class_id, item.commercial_sku);
+        const brand = item.commercial_sku ? (item.commercial_sku.brand || "Lipton") : "Unknown";
         const pack = item.commercial_sku ? (item.commercial_sku.pack_count || "Standard") : "Standard";
         const prob = (item.confidence * 100).toFixed(1);
 
@@ -338,28 +369,32 @@ document.addEventListener("DOMContentLoaded", () => {
         if (elGaugeVis) elGaugeVis.innerText = visSim.toFixed(4);
         if (elBarVis) elBarVis.style.width = `${visPct}%`;
 
+        if (elStatusBadge) {
+            if (item.is_automated || item.automated) {
+                elStatusBadge.innerText = "Automated / Verified";
+                elStatusBadge.className = "badge badge-status badge-emerald";
+                elStatusBadge.style.background = "rgba(16,185,129,0.2)";
+                elStatusBadge.style.color = "#10b981";
+            } else {
+                elStatusBadge.innerText = "HITL Queue";
+                elStatusBadge.className = "badge badge-status badge-rose";
+                elStatusBadge.style.background = "rgba(244,63,94,0.2)";
+                elStatusBadge.style.color = "#f43f5e";
+            }
+        }
+
         if (elCropImg && item.crop_data_url) {
             elCropImg.src = item.crop_data_url;
         }
 
-        // Update Qwen2-VL Reranker Decision Card (Visible ONLY when VLM reranked Top-5 candidates)
-        const elVlmCard = document.getElementById("inspector-vlm-card");
-        const elVlmStatus = document.getElementById("inspector-vlm-status");
-        const elVlmText = document.getElementById("inspector-vlm-text");
-
-        const hasVlm = item.vlm_verified || (item.ocr_text && item.ocr_text.includes("VLM"));
-        if (hasVlm) {
-            if (elVlmCard) elVlmCard.style.display = "block";
-            if (elVlmStatus) {
-                elVlmStatus.innerText = "VLM Reranked";
-                elVlmStatus.className = "badge badge-amber";
-            }
-            if (elVlmText) elVlmText.innerText = item.vlm_reason || item.ocr_text || "Zero-shot text & packaging verified by Qwen2-VL";
-        } else {
-            if (elVlmCard) elVlmCard.style.display = "none";
+        // Toggle Inline Qwen2-VL Verified Badge in Crop Title
+        const elVlmBadge = document.getElementById("inspector-vlm-badge");
+        const hasVlm = item.vlm_verified || (item.ocr_text && item.ocr_text.length > 0);
+        if (elVlmBadge) {
+            elVlmBadge.style.display = hasVlm ? "inline-flex" : "none";
         }
 
-        // Render Top-5 Candidates Table in Drawer
+        // Render Candidates Table in Drawer
         const tbody = document.getElementById("top5-candidates-tbody");
         if (tbody) {
             tbody.innerHTML = "";
@@ -373,15 +408,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 const vlmBadge = isVlmPick ? ' <span class="badge badge-amber" style="font-size:10px;"><i class="fa-solid fa-star"></i> VLM Pick</span>' : '';
                 const candImgSrc = cand.exemplar_url || `/v1/exemplars/${cand.class_id}`;
+                const fusedVal = cand.s_fused !== undefined ? cand.s_fused.toFixed(4) : cand.similarity.toFixed(4);
+                const candClassStr = (cand.class_id === -1 || cand.class_id === null || cand.class_id === undefined) ? "Unknown" : `Class ${cand.class_id}`;
                 tr.innerHTML = `
                     <td><strong>#${idx + 1}</strong></td>
                     <td>
                         <img src="${candImgSrc}" style="width:36px;height:36px;object-fit:contain;background:#0f172a;border:1px solid #334155;border-radius:4px;">
                     </td>
-                    <td>Class ${cand.class_id}</td>
+                    <td>${candClassStr}</td>
                     <td><strong>${cand.display_name}</strong>${vlmBadge}</td>
                     <td>${cand.similarity.toFixed(4)}</td>
-                    <td><strong>${(cand.similarity * 100).toFixed(1)}%</strong></td>
+                    <td><strong>${fusedVal}</strong></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -394,9 +431,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!tbody) return;
         tbody.innerHTML = "";
 
+        if (!data || !data.hitl_queue) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:#94a3b8;"><i class="fa-solid fa-inbox" style="font-size:24px;margin-bottom:8px;display:block;"></i>No shelf audit uploaded yet. Upload a shelf scan to view review queue.</td></tr>`;
+            return;
+        }
+
         const hitlItems = data.hitl_queue || [];
         if (hitlItems.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:#10b981;"><i class="fa-solid fa-circle-check"></i> HITL Review Queue is Empty! All products auto-annotated cleanly.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:#10b981;"><i class="fa-solid fa-circle-check" style="font-size:24px;margin-bottom:8px;display:block;"></i>HITL Review Queue is Empty! All products auto-annotated cleanly.</td></tr>`;
             return;
         }
 
@@ -408,11 +450,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const parentName = item.parent_image_name || data.image_name || "shelf.jpg";
             const cropIdDisplay = item.crop_id || `facing_crop_${index + 1}`;
             const bboxStr = `(${Math.round(item.bbox.x1)}, ${Math.round(item.bbox.y1)}, ${Math.round(item.bbox.x2)}, ${Math.round(item.bbox.y2)})`;
-            const predTitle = item.commercial_sku ? item.commercial_sku.display_name : `Class ${item.class_id}`;
+            const predTitle = formatClassTitle(item.class_id, item.commercial_sku);
             const probPct = (item.confidence * 100).toFixed(1);
 
             // Construct 67-class dropdown + Unknown option
-            let optionsHtml = `<option value="-1">❌ Unknown / Non-Catalog Competitor SKU</option>`;
+            let optionsHtml = `<option value="-1" ${(item.class_id === -1 || item.class_id === null || item.class_id === undefined) ? 'selected' : ''}>❌ Class Unknown / Out of Catalog</option>`;
             classList.forEach(c => {
                 const isSelected = (c.class_id === item.class_id) ? "selected" : "";
                 optionsHtml += `<option value="${c.class_id}" ${isSelected}>[Class ${c.class_id}] ${c.display_name}</option>`;
@@ -436,15 +478,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td>
                     <span class="badge" style="background:rgba(244,63,94,0.2);color:#f43f5e;font-size:11px;">${item.reject_reason || 'LOW_CONFIDENCE'}</span>
                 </td>
-                <td style="min-width:260px;">
-                    <select id="select-${item.hitl_id}" class="custom-select" style="width:100%;font-size:12px;padding:6px 10px;">
-                        ${optionsHtml}
-                    </select>
-                </td>
                 <td>
-                    <button class="btn btn-emerald btn-sm" onclick="saveHITLCorrection('${item.hitl_id}', '${item.crop_id}', '${parentName}')">
-                        <i class="fa-solid fa-floppy-disk"></i> Save & Upsert
-                    </button>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <select id="select-${item.hitl_id}" class="custom-select" style="flex:1;min-width:200px;font-size:12px;padding:6px 10px;">
+                            ${optionsHtml}
+                        </select>
+                        <button class="btn btn-emerald btn-sm" style="white-space:nowrap;" onclick="saveHITLCorrection('${item.hitl_id}', '${item.crop_id}', '${parentName}')">
+                            <i class="fa-solid fa-floppy-disk"></i> Save & Upsert
+                        </button>
+                    </div>
                 </td>
             `;
 
@@ -453,7 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // 6. Save HITL Correction to Active Database
-    window.saveHITLCorrection = function(hitlId, cropId, parentName) {
+    window.saveHITLCorrection = function(hitlId, cropId, parentName, predictedClassId, top1Similarity) {
         const selectEl = document.getElementById(`select-${hitlId}`);
         if (!selectEl) return;
 
@@ -465,6 +507,10 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("parent_image_name", parentName);
         formData.append("assigned_class_id", assignedClassId);
         formData.append("reviewer_id", "merchandiser_user");
+        // Sent so the server can still tell an approval from a correction if
+        // its audit-context cache has missed (e.g. a restart mid-review).
+        formData.append("predicted_class_id", predictedClassId);
+        formData.append("top1_similarity", top1Similarity);
 
         fetch("/v1/hitl/review", {
             method: "POST",
@@ -490,13 +536,34 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     };
 
-    // 7. Commercial Catalog Explorer Grid
-    function renderCatalogExplorer() {
+    // 7. Commercial Catalog Explorer Grid & Search Filter
+    const catalogSearchInput = document.getElementById("catalog-search-input");
+    if (catalogSearchInput) {
+        catalogSearchInput.addEventListener("input", (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            renderCatalogExplorer(query);
+        });
+    }
+
+    function renderCatalogExplorer(query = "") {
         const grid = document.getElementById("catalog-grid");
         if (!grid) return;
         grid.innerHTML = "";
 
-        classList.forEach(info => {
+        const filtered = classList.filter(info => {
+            if (!query) return true;
+            const title = (info.display_name || "").toLowerCase();
+            const brand = (info.brand || "").toLowerCase();
+            const cid = String(info.class_id || "");
+            return title.includes(query) || brand.includes(query) || cid.includes(query);
+        });
+
+        if (filtered.length === 0) {
+            grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#94a3b8;"><i class="fa-solid fa-magnifying-glass" style="font-size:24px;margin-bottom:12px;"></i><p>No catalog SKUs found matching "${query}"</p></div>`;
+            return;
+        }
+
+        filtered.forEach(info => {
             const card = document.createElement("div");
             card.className = "catalog-card";
             const cid = info.class_id;
@@ -627,29 +694,33 @@ document.addEventListener("DOMContentLoaded", () => {
             e.preventDefault();
             onboardDropzone.classList.remove("dragover");
             if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                handleOnboardFileSelection(e.dataTransfer.files);
+                handleOnboardFilesSelect(Array.from(e.dataTransfer.files));
             }
         });
 
         onboardFileInput.addEventListener("change", (e) => {
             if (e.target.files && e.target.files.length > 0) {
-                handleOnboardFileSelection(e.target.files);
+                handleOnboardFilesSelect(Array.from(e.target.files));
             }
         });
     }
 
-    function handleOnboardFileSelection(fileList) {
-        onboardSelectedFiles = Array.from(fileList);
-        const badge = document.getElementById("crop-count-badge");
+    function handleOnboardFilesSelect(files) {
+        const validImages = files.filter(f => f.type.startsWith("image/"));
+        onboardSelectedFiles = validImages;
+
+        const badge = document.getElementById("onboard-count-badge");
         if (badge) {
-            badge.innerText = `${onboardSelectedFiles.length} Crops Selected (${onboardSelectedFiles.length >= 10 && onboardSelectedFiles.length <= 50 ? 'Valid' : 'Need 10-50'})`;
-            badge.className = onboardSelectedFiles.length >= 10 && onboardSelectedFiles.length <= 50 ? 'badge badge-emerald' : 'badge badge-rose';
+            badge.innerText = `${onboardSelectedFiles.length} Crops Selected`;
+            badge.className = (onboardSelectedFiles.length >= 10 && onboardSelectedFiles.length <= 50)
+                ? "file-count-badge success"
+                : "file-count-badge warning";
         }
 
         if (!onboardPreviewGrid) return;
         onboardPreviewGrid.innerHTML = "";
 
-        onboardSelectedFiles.slice(0, 30).forEach(file => {
+        onboardSelectedFiles.forEach(file => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = document.createElement("img");
@@ -793,4 +864,145 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
         });
     }
+
+    // 9. Inspector Drawer Action Handlers (Approve & Correct)
+    const btnApprove = document.getElementById("btn-hitl-approve");
+    const btnCorrect = document.getElementById("btn-hitl-correct");
+
+    if (btnApprove) {
+        btnApprove.addEventListener("click", () => {
+            if (!currentlyInspectedItem) {
+                showToast("Please select a product crop on the shelf first.", "error");
+                return;
+            }
+            saveHITLCorrectionDirect(currentlyInspectedItem, currentlyInspectedItem.class_id);
+        });
+    }
+
+    if (btnCorrect) {
+        btnCorrect.addEventListener("click", () => {
+            if (!currentlyInspectedItem) {
+                showToast("Please select a product crop on the shelf first.", "error");
+                return;
+            }
+            openCorrectionModal(currentlyInspectedItem);
+        });
+    }
+
+    // Modal Control Wiring
+    const modal = document.getElementById("correction-modal");
+    const modalClose = document.getElementById("modal-close");
+    const modalCancel = document.getElementById("modal-cancel-btn");
+    const modalSubmit = document.getElementById("modal-submit-btn");
+
+    if (modalClose) modalClose.addEventListener("click", closeModal);
+    if (modalCancel) modalCancel.addEventListener("click", closeModal);
+    if (modal) {
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    function closeModal() {
+        if (modal) modal.style.display = "none";
+    }
+
+    function openCorrectionModal(item) {
+        const cropImg = document.getElementById("modal-crop-img");
+        const currentPred = document.getElementById("modal-current-pred");
+        const select = document.getElementById("modal-class-select");
+
+        if (!modal) return;
+
+        if (cropImg && item.crop_data_url) cropImg.src = item.crop_data_url;
+        const currentTitle = (item.class_id === -1 || item.class_id === null || item.class_id === undefined) 
+            ? "Class Unknown" 
+            : (item.commercial_sku ? item.commercial_sku.display_name : `Class ${item.class_id}`);
+        if (currentPred) currentPred.innerText = currentTitle;
+
+        if (select) {
+            select.innerHTML = `<option value="-1">❌ Class Unknown / Out of Catalog</option>`;
+            classList.forEach(c => {
+                const isSelected = (c.class_id === item.class_id) ? "selected" : "";
+                select.innerHTML += `<option value="${c.class_id}" ${isSelected}>[Class ${c.class_id}] ${c.display_name}</option>`;
+            });
+        }
+
+        modal.style.display = "flex";
+    }
+
+    if (modalSubmit) {
+        modalSubmit.addEventListener("click", () => {
+            const select = document.getElementById("modal-class-select");
+            if (!select || !currentlyInspectedItem) return;
+            const newClassId = parseInt(select.value);
+            saveHITLCorrectionDirect(currentlyInspectedItem, newClassId);
+            closeModal();
+        });
+    }
+
+    function saveHITLCorrectionDirect(item, newClassId) {
+        const hitlId = item.hitl_id || item.crop_id || "facing_crop";
+        const parentName = item.parent_image_name || (auditData ? auditData.image_name : "shelf.jpg") || "shelf.jpg";
+
+        const formData = new FormData();
+        formData.append("hitl_id", hitlId);
+        formData.append("crop_id", item.crop_id || "facing_crop");
+        formData.append("parent_image_name", parentName);
+        formData.append("assigned_class_id", newClassId);
+        formData.append("reviewer_id", "merchandiser_auditor");
+
+        fetch("/v1/hitl/review", {
+            method: "POST",
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            item.class_id = newClassId;
+            item.automated = true;
+            item.is_automated = true;
+            item.confidence = 1.0;
+            if (catalogMap[newClassId]) {
+                item.commercial_sku = catalogMap[newClassId];
+            } else if (newClassId === -1) {
+                item.commercial_sku = { display_name: "Class Unknown", brand: "Unknown", pack_count: "None" };
+            }
+
+            const titleStr = item.commercial_sku ? item.commercial_sku.display_name : (newClassId === -1 ? 'Class Unknown' : `Class ${newClassId}`);
+            showToast(`Approved & logged classification for '${titleStr}'!`);
+            
+            // Re-render dashboard components
+            if (auditData) updateMetrics(auditData);
+            openInspectorDrawer(item);
+            renderCanvasBoxes();
+        })
+        .catch(err => {
+            showToast(`Correction failed: ${err.message}`, "error");
+        });
+    }
+
+    function showToast(msg, type = "success") {
+        let container = document.getElementById("toast-container");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "toast-container";
+            container.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;";
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement("div");
+        const bg = type === "success" ? "rgba(16, 185, 129, 0.95)" : "rgba(244, 63, 94, 0.95)";
+        toast.style.cssText = `background:${bg};color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 10px 25px rgba(0,0,0,0.3);transition:all 0.3s ease;transform:translateY(10px);opacity:0;`;
+        toast.innerHTML = `<i class="fa-solid fa-${type === 'success' ? 'circle-check' : 'circle-xmark'}"></i> ${msg}`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.transform = "translateY(0)";
+            toast.style.opacity = "1";
+        }, 10);
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
+>>>>>>> f7f05b12b24045efb126fe4ff9049fcb7ad886ff
 });
+

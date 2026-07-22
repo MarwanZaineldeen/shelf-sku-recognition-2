@@ -86,7 +86,7 @@ Crops are processed by `DINOv3Extractor` (`ml/embeddings/dinov3.py`):
   - `facings_detected`: Count of new SKU facings recognized on shelf.
   - `mean_similarity`: Average cosine similarity score ($S_{\text{vis}}$).
   - `pass_validation`: Boolean indicator ($\text{facings} > 0$ and $S_{\text{vis}} \ge 75\%$).
-  - `recommendation`: Automated guidance guidance (e.g. *"✅ Sufficient Examples (94.1% Quality)"*).
+  - `recommendation`: Automated guidance (e.g. *"✅ Sufficient Examples (94.1% Quality)"*).
 
 ---
 
@@ -184,4 +184,3 @@ python -m uvicorn server.app:app --host 127.0.0.1 --port 5000 --reload
 python -m unittest tests/test_pipeline2_onboarding.py tests/test_api_audit_e2e.py
 ```
 *Output*: `Ran 6 tests in 21.498s -> OK`
-

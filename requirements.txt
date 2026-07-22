@@ -1,11 +1,33 @@
-pandas
+# Core numerics / imaging
 numpy
+pandas
 matplotlib
 opencv-python
+pillow
 scikit-learn
 tabulate
+
+# Detection
 ultralytics
 prometheus-fastapi-instrumentator
 prometheus-client
-prometheus-fastapi-instrumentator
-prometheus-client
+
+# Embeddings (DINOv3 ViT-B/16, 768-D)
+torch
+transformers>=4.56
+safetensors
+
+# API server
+fastapi
+uvicorn
+pydantic>=2
+pyyaml
+python-multipart          # required by FastAPI for Form/File endpoints
+
+# Optional — OCR fusion path (unused by the DINOv3 pipeline)
+# easyocr
+
+# Optional — Qwen2-VL reranker. The AWQ checkpoint also needs gptqmodel;
+# without it the reranker disables itself and Tier-2 reranking
+# (0.75 <= S_vis < 0.92) is silently skipped.
+# gptqmodel

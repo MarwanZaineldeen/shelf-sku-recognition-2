@@ -42,3 +42,5 @@ env/
 artifacts/
 scratch/
 reports/experiments/
+
+RUN_STEPS.txt

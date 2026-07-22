@@ -1,0 +1,325 @@
+================================================================================
+HOW TO RUN PIPELINE 3 — ACTIVE CONTINUAL LEARNING
+Repository: shelf-sku-recognition-2   |   Branch: main
+Last verified: full pipeline executed end-to-end on the real 31,656-vector
+gallery. Every command below was run and its output checked.
+================================================================================
+
+Run everything from the repository root:
+
+    cd "d:\Mostafa Mamdouh\ITI\Graduation Project\Trial\shelf-sku-recognition-2"
+
+Verified environment:
+    Python 3.12.10   torch 2.7.1+cpu   transformers 5.5.3
+    ultralytics 8.4.103   scikit-learn 1.6.1   pydantic 2.12.5   numpy 2.2.6
+
+
+================================================================================
+PART 0 — SETUP
+================================================================================
+
+    python -m pip install -r requirements.txt
+
+requirements.txt previously omitted torch, transformers, fastapi, pydantic,
+pyyaml, pillow, safetensors, and python-multipart. It is now complete.
+Missing python-multipart is the one that bites hardest: FastAPI fails at import
+with "Form data requires python-multipart to be installed" and the server never
+starts.
+
+Required data files (all gitignored — confirmed present):
+
+    data/processed/crops/gt_clean/retail_sku_registry_dinov3.db   131 MB, 31,656 x 768-D
+    configs/weights/dinov3_vitb16/                                343 MB, DINOv3 ViT-B/16
+    runs/detect/yolo8l_sku110k/yolov8l-sku110k.pt                  88 MB
+    data/processed/yolo_remapped_clean/images/test/               127 shelf images
+
+
+================================================================================
+PART A — VERIFY (no data required)
+================================================================================
+
+A1. Test suite
+
+    python -m pytest tests/active_learning -q
+        -> 241 passed, ~12 s
+
+    python -m pytest tests/ -q --ignore=tests/test_api_audit_e2e.py --ignore=tests/test_retrieval_e2e.py
+        -> 256 passed
+
+    Do NOT run tests/test_retrieval_e2e.py casually — it downloads DINOv2 and
+    CLIP from HuggingFace and will appear to hang.
+
+A2. Synthetic end-to-end demonstration
+
+    python scripts/demo_pipeline3.py
+    python scripts/demo_pipeline3.py --keep      # keep the demo databases
+
+    Nine stages, no weights and no database needed. Writes only to
+    data/processed/pipeline3_demo/ and cleans up after itself.
+
+    STEP 1  Seed a synthetic gallery with deliberate near-duplicates
+    STEP 2  Simulate an audit and 12 human verdicts through the real ingest path
+    STEP 3  Status report
+    STEP 4  Confusion mining
+    STEP 5  Session DRY RUN      } counts are identical by construction;
+    STEP 6  Session APPLIED      } a test enforces the equality
+    STEP 7  Rollback
+    STEP 8  Train a challenger SupCon head (never auto-promoted)
+    STEP 9  The promotion gate on three scenarios:
+              genuinely better challenger        -> PROMOTE
+              better Top-1 but automation dies   -> REJECT
+              gallery crops leaking into test    -> LeakageError
+
+    STEP 9's middle case is why the gate exists: that challenger is +9.3pp
+    Top-1 and +1.1pp Top-5 — better on every accuracy metric — yet its
+    automation rate falls from 88% to 0%. A gate promoting on Top-1 ships it.
+
+
+================================================================================
+PART B — RUN THE REAL PIPELINE
+================================================================================
+
+B1. Start the server
+
+    python -m uvicorn server.app:app --host 127.0.0.1 --port 8000
+
+    Takes ~30 s: loads YOLOv8l, DINOv3, and 31,656 gallery vectors (3.9 s).
+    Wait for "Service Startup Completed. Platform Ready."
+
+    Expected during startup, and harmless:
+        [Qwen2VL] Warning: Offline model initialization skipped/failed
+    The AWQ checkpoint needs gptqmodel. The reranker disables itself and
+    Tier-2 reranking (0.75 <= S_vis < 0.92) is skipped. See PART D item 2.
+
+B2. Audit a shelf
+
+    Browser: http://127.0.0.1:8000     (sample image loads automatically, ~40 s)
+
+    Or via API:
+        curl http://127.0.0.1:8000/healthz
+        curl -m 550 http://127.0.0.1:8000/v1/audit/sample -o audit_out.json
+        curl -X POST http://127.0.0.1:8000/v1/audit/shelf -F "file=@shelf.jpg" -o audit_out.json
+
+    Measured on "Transmed Others 246.jpg":
+        164 detections | 24 auto-annotated (14.6%) | 140 to HITL | ~36 s
+        e.g. crop_6 -> class 41, p=0.961,
+             "Lipton Green Tea Mint Value Pack - 100 Tea Bags"
+
+B3. Review crops in the HITL queue
+
+    In the dashboard, for each row pick the correct SKU — or
+    "Unknown / Non-Catalog Competitor SKU" if it matches no catalog product —
+    then click "Save & Upsert".
+
+    The response confirms what was stored:
+        {"decision":"CORRECTED","embedding_captured":true,"pending_reviews":1}
+
+    All three decision paths are verified working end-to-end:
+        reviewer picks a different class  -> CORRECTED
+        reviewer agrees with the model    -> APPROVED
+        reviewer picks "Unknown"          -> NOT_IN_CATALOG
+
+    "embedding_captured": true means the audit-time DINOv3 vector was retained
+    and the crop can be promoted into the gallery later. If it reads false the
+    review is still stored, but promotion will skip it with NO_EMBEDDING.
+
+B4. Inspect the loop state
+
+    python -m ml.active_learning.loop ^
+        --review-db data/processed/active_learning/reviews.db ^
+        --gallery-db data/processed/crops/gt_clean/retail_sku_registry_dinov3.db ^
+        report
+
+    Measured output:
+        Gallery: 31656 active vectors across 67 classes
+          per class  min 2 / median 406 / mean 472.5 / max 1457
+          over cap 500: 29 classes
+
+B5. Curate — preview, then apply
+
+    ... session --cap 500                 (preview, ~4 min on the full gallery)
+    ... session --cap 500 --apply
+
+    Measured preview:
+        gallery_before : 31,658   (31,656 seed + 2 promoted reviews)
+        gallery_after  : 22,007
+        n_pruned       :  9,651   (30.5%)
+        skipped        : 1 (NO_VERIFIED_CLASS — the open-set rejection)
+
+    The dry run performs transient writes and rolls them back, so its numbers
+    match the applied run exactly. Verified afterwards against the real
+    database: 31,656 seed rows active, 0 rows left pruned, retrieval sees
+    exactly the original 31,656.
+
+    Note the "baseline_version" in the output — that is your rollback point.
+
+B6. Roll back
+
+    ... rollback --version <baseline_version> --apply
+
+    Nothing is ever hard-deleted. Pruned rows are deactivated and restorable;
+    promoted rows are hidden by deactivating their gallery version.
+
+B7. Train a challenger head (optional, default OFF)
+
+    ... finetune --force
+
+    Triggers automatically at 500 unconsumed reviews. Writes a checkpoint
+    stamped CHALLENGER_UNPROMOTED and changes nothing in production.
+
+    Honest advice: Top-5 is already 98.70%, so retrieval nearly always CONTAINS
+    the right answer — the failure is ranking within the Top-5, which the
+    Qwen2-VL reranker addresses. A head trained on a few hundred reviews risks
+    overfitting for a couple of points and is the one change that forces full
+    recalibration. Prefer curation until the review corpus is large.
+
+B8. Gate a challenger before promoting it
+
+    There is deliberately no "promote" subcommand. Promotion runs through
+    ml/active_learning/gate.py and requires all of:
+
+        1. Top-1 gain proven         (CI95 lower bound > +0.005)
+        2. Top-5 no regression       (CI95 lower bound > -0.005)
+        3. Automation rate at 95% precision, no regression, measured AFTER
+           refitting Platt on a validation split
+        4. No shelf image in both the challenger gallery and the test set
+
+    Criterion 3 is the important one: serving a projected embedding space
+    changes the similarity distribution and silently invalidates the Platt
+    coefficients (a=15.0, b=-11.0) and the gating bands (0.75 / 0.92). Top-1
+    cannot see that failure; automation rate can. A passing gate emits the
+    recalibrated coefficients, which must ship with the checkpoint.
+
+
+================================================================================
+PART C — WHAT EACH FILE DOES
+================================================================================
+
+ml/active_learning/
+    store.py           SQLite review log (reviews + review_candidates)
+    ingest.py          Bridges the live audit into the store; caches embeddings
+    curation.py        k-center greedy selection, near-duplicate rejection
+    memory.py          Applies curation and promotion, versioned and reversible
+    hard_negatives.py  Mines confusion pairs from candidate slates
+    finetune.py        SupCon projection head (opt-in, default OFF)
+    gate.py            Paired-bootstrap champion/challenger promotion gate
+    loop.py            The CLI used above
+
+scripts/demo_pipeline3.py        The PART A2 demonstration
+tests/active_learning/           241 tests, all model-free
+final_pipeline3_claude_plan.md   The agreed design and its revisions
+
+
+================================================================================
+PART D — KNOWN ISSUES
+================================================================================
+
+1. END-TO-END AUTOMATION IS 14.6%, NOT THE README'S 93.65%.
+
+   Those measure different things. 93.65% is a clean-crop retrieval benchmark
+   (gallery crop vs gallery crop). 14.6% is the share of real detector boxes
+   that clear the auto-annotate gate. On the sample image, 120 of 164 crops
+   scored below 0.75 similarity.
+
+   Most likely a domain gap: every gallery row has
+   source_image_name = "exemplar_gallery", i.e. clean isolated reference
+   crops, while the queries are angled, occluded, partially cropped shelf
+   detections. Worth investigating before presenting the system, because this
+   is the number people will ask about.
+
+   This is a base-retrieval characteristic, NOT a Pipeline 3 defect.
+
+2. QWEN2-VL NEVER LOADS.
+
+   The AWQ checkpoint requires gptqmodel:
+       python -m pip install gptqmodel
+   Without it the reranker sets is_ready=False and the orchestrator skips
+   Tier 2 entirely. That band (0.75 <= S_vis < 0.92) is exactly where 20 of
+   the sample image's crops landed, so installing it may recover a meaningful
+   share of the 14.6%.
+
+3. THE GATE'S LEAKAGE CHECK IS INERT FOR THE SEED GALLERY.
+
+   All 31,656 seed rows carry source_image_name = "exemplar_gallery" — one
+   distinct value. Criterion 4 has nothing to compare against for them; their
+   provenance was lost when the gallery was built. It works correctly for
+   crops promoted from reviews, which carry real shelf image names.
+
+   If you rebuild the gallery, preserve the true source image per crop.
+
+4. VERY SMALL CLASSES ARE FRAGILE.
+
+   Class 50 has 2 vectors, class 45 has 4, class 46 has 11. Near-duplicate
+   rejection can reduce these further. Curation has no per-class floor; adding
+   a minimum (exempting small classes from pruning) is worth doing before
+   relying on --apply in production.
+
+5. THE CURATION CAP IS NOW RATIFIED — NO ACTION NEEDED.
+
+   Measured: 29 of 67 classes exceed 500; curation takes 31,658 -> 22,007
+   (30.5% pruned). The original spec's "~22,000" estimate was accurate.
+   DEFAULT_CLASS_CAP = 500 is correct. Keep it.
+
+6. HARDCODED PATHS — FIXED IN THE FILES PIPELINE 3 NEEDS, NOT REPO-WIDE.
+
+   Fixed:
+       server/app.py         workspace_root now resolves from the repo
+                             (override with RETAIL_AI_ROOT)
+       ml/embeddings/dinov3.py  weights now load from configs/weights/dinov3_vitb16
+                             (override with DINOV3_WEIGHTS_DIR)
+
+   Still hardcoded to "d:/Marwan/ITI AI&ML/Transmid GP" — these are offline
+   scripts, not needed to run the pipeline:
+       scripts/run_eda.py, scripts/process_shelf.py,
+       scripts/generate_class_ocr_groundtruth.py,
+       scripts/export_product_text_and_crops.py,
+       scripts/migrate_pickle_to_sqlite.py, tests/test_api_audit_e2e.py
+
+7. ml/embeddings/dinov3.py HAD A SILENT-CORRUPTION BUG (FIXED).
+
+   The shipped config.json declares "model_type": "dinov2" while its
+   architectures field and tensor names are DINOv3. AutoModel dispatches on
+   model_type, so it built a DINOv2 graph, matched zero DINOv3 parameters, and
+   initialised the entire backbone at random — producing well-formed but
+   meaningless embeddings. transformers 5.x raises on this; older versions did
+   not, which is how it went unnoticed.
+
+   Now loads DINOv3ViTModel explicitly: 0 missing / 0 unexpected keys.
+   If you ever regenerate that weights directory, fix model_type to
+   "dinov3_vit" at the source.
+
+
+================================================================================
+PART E — TROUBLESHOOTING
+================================================================================
+
+"Form data requires python-multipart to be installed"
+    python -m pip install -r requirements.txt
+
+"ModuleNotFoundError: No module named 'ultralytics'"
+    Same — it is in requirements.txt now.
+
+"[Errno 10048] only one usage of each socket address"
+    Port 8000 already has a server on it. Reuse it, or start on another port
+    with --port 8001.
+
+"ModuleNotFoundError: No module named 'ml'"
+    Run from the repository root, not from inside scripts/ or tests/.
+
+A pytest run hangs for minutes
+    You ran tests/test_retrieval_e2e.py, which downloads DINOv2 and CLIP.
+    Use the --ignore flags from A1.
+
+Server startup takes 30 s / an audit takes 40 s
+    Expected on CPU. DINOv3 runs ~246 ms per crop and a shelf has ~164 crops.
+
+Gate reports UNDERPOWERED
+    The evaluation set is too small to resolve the margin. That is a shortage
+    of evidence, not evidence of harm. Enlarge the test set; do not widen the
+    margin to silence it.
+
+A session applied something you did not want
+    Every session prints "baseline_version":
+        python -m ml.active_learning.loop --gallery-db <path> rollback --version <N> --apply
+    Nothing is hard-deleted; pruned rows are deactivated and restorable.
+================================================================================

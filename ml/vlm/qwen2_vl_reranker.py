@@ -102,12 +102,14 @@ class Qwen2VLReranker:
         # If heavy neural network weights loaded, execute full transformer generation
         if self.model is not None and self.processor is not None:
             try:
-                options_str = "\n".join([f"{i+1}. {c['display_name']}" for i, c in enumerate(top5_candidates)])
+                options = [f"{i+1}. {c['display_name']}" for i, c in enumerate(top5_candidates)]
+                options.append(f"{len(top5_candidates)+1}. Unknown")
+                options_str = "\n".join(options)
                 prompt = (
                     "Look at this retail product package image carefully. "
                     "Which of the following product titles matches the exact brand, flavor, and pack size?\n"
                     f"{options_str}\n"
-                    "Respond ONLY with the option number (1, 2, 3, 4, or 5)."
+                    f"Respond ONLY with the option number (1 to {len(top5_candidates)+1})."
                 )
                 messages = [
                     {
@@ -127,23 +129,46 @@ class Qwen2VLReranker:
 
                 best_idx = 0
                 for char in output_text:
-                    if char.isdigit() and 1 <= int(char) <= len(top5_candidates):
+                    if char.isdigit() and 1 <= int(char) <= (len(top5_candidates) + 1):
                         best_idx = int(char) - 1
                         break
 
-                reranked = [dict(c) for c in top5_candidates]
-                reranked[best_idx]["s_fused"] = min(1.0, reranked[best_idx].get("similarity", 0.8) + 0.12)
-                reranked[best_idx]["qwen2_vl_verified"] = True
-                reranked[best_idx]["vlm_selected_rank"] = best_idx + 1
+                # Weighted Score Fusion: 80% DINOv3 visual embedding + 20% VLM verification
+                reranked = []
+                for idx, cand in enumerate(top5_candidates):
+                    cand_dict = dict(cand)
+                    s_vis = float(cand_dict.get("similarity", 0.0))
+                    is_vlm_pick = (idx == best_idx)
+                    vlm_signal = 1.0 if is_vlm_pick else 0.0
+                    
+                    # S_fused = 0.80 * DINOv3_similarity + 0.20 * VLM_signal
+                    s_fused = 0.80 * s_vis + 0.20 * vlm_signal
+                    cand_dict["s_fused"] = float(s_fused)
+                    cand_dict["vlm_selected"] = is_vlm_pick
+                    cand_dict["qwen2_vl_verified"] = is_vlm_pick
+                    cand_dict["vlm_selected_rank"] = best_idx + 1 if is_vlm_pick else None
+                    reranked.append(cand_dict)
+
+                if best_idx == len(top5_candidates):
+                    # VLM explicitly selected Option "Unknown"
+                    reranked.append({
+                        "class_id": -1,
+                        "display_name": "Class Unknown",
+                        "similarity": 0.0,
+                        "s_fused": 0.20,
+                        "vlm_selected": True,
+                        "qwen2_vl_verified": True,
+                        "vlm_selected_rank": len(top5_candidates) + 1
+                    })
+
                 reranked.sort(key=lambda x: x.get("s_fused", 0.0), reverse=True)
                 return reranked
             except Exception as e:
                 print(f"[Qwen2VL] Heavy model generation fallback: {e}")
 
-        # Lightweight Zero-Shot Text & Packaging Variant Matcher
-        reranked = [dict(c) for c in top5_candidates]
+        # Lightweight Zero-Shot Text & Packaging Variant Matcher with 80/20 Weighted Score Fusion
         best_idx = 0
-        max_score = -1.0
+        max_vlm_score = -1.0
 
         for idx, cand in enumerate(top5_candidates):
             title = cand.get("display_name", "").lower()
@@ -162,15 +187,27 @@ class Qwen2VLReranker:
             if "yellow" in title or "black" in title:
                 score += 0.02
                 
-            if score > max_score:
-                max_score = score
+            if score > max_vlm_score:
+                max_vlm_score = score
                 best_idx = idx
 
-        reranked[best_idx]["s_fused"] = min(1.0, reranked[best_idx].get("similarity", 0.8) + 0.12)
-        reranked[best_idx]["qwen2_vl_verified"] = True
-        reranked[best_idx]["vlm_selected_rank"] = best_idx + 1
+        reranked = []
+        for idx, cand in enumerate(top5_candidates):
+            cand_dict = dict(cand)
+            s_vis = float(cand_dict.get("similarity", 0.0))
+            is_vlm_pick = (idx == best_idx)
+            vlm_signal = 1.0 if is_vlm_pick else 0.0
+
+            # S_fused = 0.80 * DINOv3_similarity + 0.20 * VLM_signal
+            s_fused = 0.80 * s_vis + 0.20 * vlm_signal
+            cand_dict["s_fused"] = float(s_fused)
+            cand_dict["vlm_selected"] = is_vlm_pick
+            cand_dict["qwen2_vl_verified"] = is_vlm_pick
+            cand_dict["vlm_selected_rank"] = best_idx + 1 if is_vlm_pick else None
+            reranked.append(cand_dict)
+
         reranked.sort(key=lambda x: x.get("s_fused", 0.0), reverse=True)
 
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
-        print(f"[Qwen2VL] Zero-shot verified candidate #{best_idx+1} ({top5_candidates[best_idx]['display_name']}) in {elapsed_ms:.1f}ms.")
+        print(f"[Qwen2VL] Weighted fusion (80% DINOv3 + 20% VLM) verified choice: '{top5_candidates[best_idx]['display_name']}' in {elapsed_ms:.1f}ms.")
         return reranked

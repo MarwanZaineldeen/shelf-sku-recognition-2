@@ -63,6 +63,38 @@ class SQLiteGalleryStore(BaseGalleryStore):
             if cursor.fetchone()[0] == 0:
                 self.conn.execute("INSERT INTO gallery_metadata (version, active) VALUES (1, 1)")
 
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        """Adds Pipeline 3 curation columns to sku_crops if absent.
+
+        Idempotent and additive. ADD COLUMN is a metadata-only operation in
+        SQLite, so this is cheap even against the 31,656-row production
+        registry, and existing rows read back the column default.
+        """
+        if not self.conn:
+            raise RuntimeError("Database connection not initialized.")
+
+        cursor = self.conn.execute("PRAGMA table_info(sku_crops)")
+        existing = {row["name"] for row in cursor.fetchall()}
+
+        # active: soft-delete flag. Curation must never hard-DELETE, because
+        # rollback_version cannot resurrect a deleted row.
+        # pruned_in_version: which curation pass removed the row, so a
+        # rollback can restore exactly the rows that pass took out.
+        # origin: 'seed' for the original gallery, 'continual' for crops
+        # promoted from HITL reviews.
+        migrations = {
+            "active": "ALTER TABLE sku_crops ADD COLUMN active INTEGER DEFAULT 1",
+            "pruned_in_version": "ALTER TABLE sku_crops ADD COLUMN pruned_in_version INTEGER",
+            "origin": "ALTER TABLE sku_crops ADD COLUMN origin TEXT DEFAULT 'seed'",
+        }
+
+        with self.conn:
+            for column, statement in migrations.items():
+                if column not in existing:
+                    self.conn.execute(statement)
+
     def health_check(self) -> Tuple[bool, str]:
         """Verifies database availability."""
         if not self.conn:
@@ -94,9 +126,17 @@ class SQLiteGalleryStore(BaseGalleryStore):
 
     def save_references_bulk(
         self,
-        references: List[Tuple[int, int, str, str, str, List[float], List[float]]]
+        references: List[Tuple[int, int, str, str, str, List[float], List[float]]],
+        origin: str = "seed"
     ) -> int:
-        """Persists a batch of reference crop embeddings to SQLite in a single transaction."""
+        """Persists a batch of reference crop embeddings to SQLite in a single transaction.
+
+        Args:
+            references: Tuples of (class_id, old_class_id, crop_path, family_id,
+                source_image, bbox_coords, embedding_vector).
+            origin: 'seed' for the original gallery, 'continual' for crops
+                promoted from HITL reviews.
+        """
         if not self.conn:
             raise RuntimeError("Database connection not initialized.")
 
@@ -117,15 +157,16 @@ class SQLiteGalleryStore(BaseGalleryStore):
                     crop_id, class_id, old_class_id, crop_path, family_id,
                     source_image, float(bbox_coords[0]), float(bbox_coords[1]),
                     float(bbox_coords[2]), float(bbox_coords[3]),
-                    embedding_bytes, version
+                    embedding_bytes, version, origin
                 ))
 
             self.conn.executemany(
                 """
                 INSERT INTO sku_crops (
-                    id, remapped_class_id, old_class_id, crop_path, family_id, 
-                    source_image_name, x1, y1, x2, y2, embedding, gallery_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, remapped_class_id, old_class_id, crop_path, family_id,
+                    source_image_name, x1, y1, x2, y2, embedding, gallery_version,
+                    origin, active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 """,
                 insert_data
             )
@@ -172,8 +213,18 @@ class SQLiteGalleryStore(BaseGalleryStore):
             )
             return version
 
-    def fetch_all_references(self) -> Tuple[List[EmbeddingDTO], List[Dict[str, Any]]]:
-        """Loads all registered reference vectors and metadata in memory."""
+    def fetch_all_references(self) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
+        """Loads all active reference vectors and metadata in memory.
+
+        Returns:
+            Tuple[np.ndarray, List[Dict[str, Any]]]: An (N, D) float32 array
+            and N metadata dicts in matching row order.
+
+        Note:
+            Returns a raw ndarray rather than EmbeddingDTOs — NumpyCosineIndex
+            feeds the array straight into its matrix search, and building
+            31,656 DTOs per load would be pure overhead.
+        """
         if not self.conn:
             raise RuntimeError("Database connection not initialized.")
 
@@ -181,7 +232,7 @@ class SQLiteGalleryStore(BaseGalleryStore):
             """
             SELECT s.* FROM sku_crops s
             INNER JOIN gallery_metadata m ON s.gallery_version = m.version
-            WHERE m.active = 1
+            WHERE m.active = 1 AND s.active = 1
             """
         )
         rows = cursor.fetchall()
@@ -200,11 +251,13 @@ class SQLiteGalleryStore(BaseGalleryStore):
         for idx, row in enumerate(rows):
             vectors[idx] = np.frombuffer(row["embedding"], dtype=np.float32)
             meta = {
+                "id": row["id"],
                 "crop_path": row["crop_path"],
                 "remapped_class_id": row["remapped_class_id"],
                 "old_class_id": row["old_class_id"],
                 "family_id": row["family_id"],
                 "source_image_name": row["source_image_name"],
+                "origin": row["origin"],
                 "bbox": [row["x1"], row["y1"], row["x2"], row["y2"]]
             }
             metadata.append(meta)
@@ -212,7 +265,12 @@ class SQLiteGalleryStore(BaseGalleryStore):
         return vectors, metadata
 
     def delete_sku(self, class_id: int) -> int:
-        """Deletes SKU references from index."""
+        """Soft-deletes all references for a SKU class.
+
+        Marks rows inactive rather than dropping them, so rollback_version
+        can restore the SKU. Rows disappear from fetch_all_references
+        immediately, exactly as a hard delete would.
+        """
         if not self.conn:
             raise RuntimeError("Database connection not initialized.")
 
@@ -221,10 +279,105 @@ class SQLiteGalleryStore(BaseGalleryStore):
             version = cursor.lastrowid
 
             self.conn.execute(
-                "DELETE FROM sku_crops WHERE remapped_class_id = ?",
-                (class_id,)
+                "UPDATE sku_crops SET active = 0, pruned_in_version = ? WHERE remapped_class_id = ? AND active = 1",
+                (version, class_id)
             )
             return version
+
+    def prune_references(self, crop_ids: List[str]) -> int:
+        """Soft-deletes specific reference crops as part of a curation pass.
+
+        Args:
+            crop_ids: sku_crops.id values to deactivate.
+
+        Returns:
+            int: The gallery version stamped on the pruned rows, for rollback.
+        """
+        if not self.conn:
+            raise RuntimeError("Database connection not initialized.")
+
+        with self.conn:
+            cursor = self.conn.execute("INSERT INTO gallery_metadata (active) VALUES (1)")
+            version = cursor.lastrowid
+
+            if crop_ids:
+                self.conn.executemany(
+                    "UPDATE sku_crops SET active = 0, pruned_in_version = ? WHERE id = ? AND active = 1",
+                    [(version, cid) for cid in crop_ids]
+                )
+            return version
+
+    def fetch_active_by_class(self, class_id: int) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
+        """Loads active reference vectors for a single SKU class.
+
+        Args:
+            class_id: Remapped SKU class ID.
+
+        Returns:
+            Tuple[np.ndarray, List[Dict[str, Any]]]: An (N, D) float32 array
+            and N metadata dicts carrying 'id' for pruning, in matching order.
+        """
+        if not self.conn:
+            raise RuntimeError("Database connection not initialized.")
+
+        cursor = self.conn.execute(
+            """
+            SELECT s.* FROM sku_crops s
+            INNER JOIN gallery_metadata m ON s.gallery_version = m.version
+            WHERE m.active = 1 AND s.active = 1 AND s.remapped_class_id = ?
+            ORDER BY s.rowid ASC
+            """,
+            (int(class_id),)
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return np.empty((0, 0), dtype=np.float32), []
+
+        first_vec = np.frombuffer(rows[0]["embedding"], dtype=np.float32)
+        dim = len(first_vec)
+
+        vectors = np.empty((len(rows), dim), dtype=np.float32)
+        metadata: List[Dict[str, Any]] = []
+
+        for idx, row in enumerate(rows):
+            vec = np.frombuffer(row["embedding"], dtype=np.float32)
+            if vec.shape[0] != dim:
+                raise ValueError(
+                    f"Inconsistent embedding dimension for class {class_id}: "
+                    f"expected {dim}, got {vec.shape[0]} in crop '{row['id']}'."
+                )
+            vectors[idx] = vec
+            metadata.append({
+                "id": row["id"],
+                "crop_path": row["crop_path"],
+                "remapped_class_id": row["remapped_class_id"],
+                "old_class_id": row["old_class_id"],
+                "family_id": row["family_id"],
+                "source_image_name": row["source_image_name"],
+                "origin": row["origin"],
+            })
+
+        return vectors, metadata
+
+    def class_size_histogram(self) -> Dict[int, int]:
+        """Counts active reference crops per SKU class.
+
+        Run this before committing a curation cap — the cap only prunes
+        anything if the real distribution is skewed.
+        """
+        if not self.conn:
+            raise RuntimeError("Database connection not initialized.")
+
+        cursor = self.conn.execute(
+            """
+            SELECT s.remapped_class_id AS cid, COUNT(*) AS n FROM sku_crops s
+            INNER JOIN gallery_metadata m ON s.gallery_version = m.version
+            WHERE m.active = 1 AND s.active = 1
+            GROUP BY s.remapped_class_id
+            ORDER BY s.remapped_class_id ASC
+            """
+        )
+        return {int(row["cid"]): int(row["n"]) for row in cursor.fetchall()}
 
     def get_current_version(self) -> int:
         """Gets current active database version."""
@@ -236,18 +389,27 @@ class SQLiteGalleryStore(BaseGalleryStore):
         return row[0] if row[0] is not None else 1
 
     def rollback_version(self, version: int) -> None:
-        """Rollbacks database states to version."""
+        """Restores the registry to a previous version, non-destructively.
+
+        Rows inserted after the target version are hidden by deactivating
+        their gallery_metadata rows — fetch_all_references inner-joins on
+        m.active, so no DELETE is needed. The previous DELETE was both
+        redundant and irreversible.
+
+        Rows soft-deleted by a later curation pass are reactivated, so
+        pruning is fully undoable.
+        """
         if not self.conn:
             raise RuntimeError("Database connection not initialized.")
 
         with self.conn:
-            # Deactive newer versions
+            # Hide everything inserted after the target version.
             self.conn.execute(
                 "UPDATE gallery_metadata SET active = 0 WHERE version > ?",
                 (version,)
             )
-            # Remove crops associated with rolled-back versions
+            # Restore anything pruned after the target version.
             self.conn.execute(
-                "DELETE FROM sku_crops WHERE gallery_version > ?",
+                "UPDATE sku_crops SET active = 1, pruned_in_version = NULL WHERE pruned_in_version > ?",
                 (version,)
             )

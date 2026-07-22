@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 
 # Add workspace root to sys.path
-workspace_root = Path("d:/Marwan/ITI AI&ML/Transmid GP")
+workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
 sys.path.append(str(workspace_root))
 
 # Set environment cache paths BEFORE importing torch/transformers

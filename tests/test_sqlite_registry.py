@@ -53,7 +53,10 @@ class TestSQLiteGalleryStore(unittest.TestCase):
         self.assertEqual(len(embeddings), 1)
         self.assertEqual(len(metadata), 1)
         
-        self.assertEqual(len(embeddings[0]), 384)
+        # fetch_all_references returns an (N, D) ndarray, which NumpyCosineIndex
+        # consumes directly — not a list of EmbeddingDTOs.
+        self.assertIsInstance(embeddings, np.ndarray)
+        self.assertEqual(embeddings.shape, (1, 384))
         self.assertTrue(np.allclose(embeddings[0], [0.1] * 384))
         
         self.assertEqual(metadata[0]["remapped_class_id"], 5)
