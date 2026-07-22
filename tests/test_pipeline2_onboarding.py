@@ -94,7 +94,9 @@ class TestPipeline2Onboarding(unittest.TestCase):
         crop_dto = CropDTO(
             crop_id="query_nesquik",
             image_bytes=nesquik_sample_path.read_bytes(),
-            bbox=BBoxDTO(x1=0.0, y1=0.0, x2=100.0, y2=100.0, confidence=1.0)
+            bbox=BBoxDTO(x1=0.0, y1=0.0, x2=100.0, y2=100.0, confidence=1.0),
+            blur_score=0.0,
+            aspect_ratio=1.0
         )
         query_emb = self.embedder.extract_dto(crop_dto)
 
