@@ -25,6 +25,7 @@ from ml.ocr.easy_ocr import EasyOCREngine
 from ml.calibrators.platt import PlattCalibrator
 from ml.fusion.tfidf_ocr_matcher import TfidfOCRMatcher
 from ml.decision.gated_policy import GatedAnnotationPolicy
+from ml.active_learning.hitl_store import HITLActiveLearningStore
 from ml.orchestrator import AuditPipelineOrchestrator
 
 from server.schemas import (
@@ -56,6 +57,12 @@ if images_dir.exists():
 catalog_dir = workspace_root / "configs/class_catalog"
 if catalog_dir.exists():
     app.mount("/static/catalog", StaticFiles(directory=str(catalog_dir)), name="catalog")
+
+from fastapi.responses import FileResponse, JSONResponse, Response
+
+@app.get("/favicon.ico")
+def get_favicon():
+    return Response(status_code=204)
 
 @app.get("/")
 def get_dashboard():
@@ -99,44 +106,38 @@ def get_catalog():
 
 # Global orchestrator and registry storage references
 orchestrator: Any = None
-detector_plugin: Any = None
-embedder_plugin: Any = None
-retriever_plugin: Any = None
-ocr_plugin: Any = None
-calibrator_plugin: Any = None
-fusion_plugin: Any = None
-decision_policy_plugin: Any = None
-quality_gate_plugin: Any = None
-db_store_plugin: Any = None
+# Global plugin instances
+detector_plugin = None
+quality_gate_plugin = None
+embedder_plugin = None
+retriever_plugin = None
+ocr_plugin = None
+calibrator_plugin = None
+fusion_plugin = None
+decision_policy_plugin = None
+db_store_plugin = None
+vlm_reranker_plugin = None
+hitl_store_plugin = None
+orchestrator = None
 
 
 @app.on_event("startup")
 def startup_event():
-    global orchestrator, detector_plugin, embedder_plugin, retriever_plugin, ocr_plugin
-    global calibrator_plugin, fusion_plugin, decision_policy_plugin, quality_gate_plugin, db_store_plugin
+    global detector_plugin, quality_gate_plugin, embedder_plugin, retriever_plugin
+    global ocr_plugin, calibrator_plugin, fusion_plugin, decision_policy_plugin
+    global db_store_plugin, vlm_reranker_plugin, hitl_store_plugin, orchestrator
 
     print("Starting up Retail AI Platform Service...", flush=True)
 
-    # 1. Load yaml config
-    with open(config_path, "r") as f:
-        cfg = yaml.safe_load(f)
-
-    # 2. Load lexicon configuration
-    with open(lexicon_path, "r") as f:
-        lexicons = json.load(f)
-
-    # 3. Instantiate concrete plugins
+    # Instantiate plugins
     detector_plugin = YOLOv8Detector()
     quality_gate_plugin = BboxQualityGate()
 
-    # DINOv3 ViT-B/16 (768-D) — Native support via transformers 5.14.1
-    # Teammate's model weights outperformed DINOv2 (99% Top-5 accuracy)
     from ml.embeddings.dinov3 import DINOv3Extractor
     print("  Using DINOv3 ViT-B/16 SOTA 768-D Visual Backbone (Native)!", flush=True)
     embedder_plugin = DINOv3Extractor(device="cpu")
     retriever_plugin = NumpyCosineIndex(dimension=768)
     db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_dinov3.db")
-    dimension = 768
 
     # Load Qwen2-VL Reranker
     from ml.vlm.qwen2_vl_reranker import Qwen2VLReranker
@@ -150,9 +151,16 @@ def startup_event():
     calibrator_plugin = PlattCalibrator()
     decision_policy_plugin = GatedAnnotationPolicy()
     db_store_plugin = SQLiteGalleryStore()
+    hitl_store_plugin = HITLActiveLearningStore()
 
     print("  Initializing SQLite Gallery Store...", flush=True)
     db_store_plugin.initialize({"db_path": db_path})
+
+    print("  Initializing Active Continual Learning HITL Store...", flush=True)
+    hitl_store_plugin.initialize({
+        "db_path": str(workspace_root / "data/processed/hitl_active_learning.db"),
+        "gallery_db_path": db_path
+    })
 
     print("  Initializing YOLOv8 Detector (SKU110K Class-Agnostic)...", flush=True)
     detector_plugin.initialize({
@@ -161,22 +169,10 @@ def startup_event():
         "imgsz": 640
     })
 
-    print("  Initializing Crop Quality Gate...", flush=True)
-    quality_gate_plugin.initialize({
-        "min_area": 1024,
-        "max_aspect": 5.0,
-        "min_blur": 30.0
-    })
-
-    print(f"  Initializing Cosine Search Index ({dimension}-D)...", flush=True)
+    print(f"  Initializing Cosine Search Index (768-D)...", flush=True)
     retriever_plugin.initialize({
-        "dimension": dimension,
+        "dimension": 768,
         "db_path": db_path
-    })
-
-    print("  Initializing Platt Calibrator...", flush=True)
-    calibrator_plugin.initialize({
-        "global_coefs": {"a": 15.0, "b": -11.0}
     })
 
     print("  Initializing Gated Decision Policy...", flush=True)
@@ -428,8 +424,23 @@ async def save_hitl_review(
     reviewer_id: str = Form("merchandiser_user")
 ):
     """Saves human reviewer correction/confirmation to active SQLite DB for Pipeline 3 Continual Learning."""
-    print(f"[HITL Review] Corrected record '{hitl_id}' -> Assigned Class: {assigned_class_id} by {reviewer_id}")
-    return {"status": "success", "hitl_id": hitl_id, "assigned_class_id": assigned_class_id}
+    disp_name = "Class Unknown"
+    if orchestrator and assigned_class_id != -1 and hasattr(orchestrator, "sku_mapping"):
+        disp_name = orchestrator.sku_mapping.get(assigned_class_id, {}).get("display_name", f"Class {assigned_class_id}")
+    
+    if hitl_store_plugin:
+        try:
+            hitl_store_plugin.correct_task(
+                task_id=hitl_id,
+                correct_class_id=assigned_class_id,
+                correct_display_name=disp_name,
+                verifier_notes=f"Reviewed by {reviewer_id}"
+            )
+        except Exception as e:
+            print(f"[HITL Store] Log note: {e}")
+
+    print(f"[HITL Review] Corrected & logged record '{hitl_id}' -> Class: {assigned_class_id} ({disp_name}) by {reviewer_id}")
+    return {"status": "success", "hitl_id": hitl_id, "assigned_class_id": assigned_class_id, "display_name": disp_name}
 
 
 @app.post("/v1/onboard/sku", response_model=OnboardResponse)
