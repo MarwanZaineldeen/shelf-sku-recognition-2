@@ -1005,6 +1005,5 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => toast.remove(), 300);
         }, 3500);
     }
->>>>>>> f7f05b12b24045efb126fe4ff9049fcb7ad886ff
 });
 
