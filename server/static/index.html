@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css?v=9.0">
+    <link rel="stylesheet" href="/static/style.css?v=10.0">
 </head>
 <body class="dark-theme">
     <!-- Header Navbar -->
@@ -310,10 +310,7 @@
                         <div class="form-row-2col">
                             <div class="form-group">
                                 <label><i class="fa-solid fa-hashtag"></i> New Class ID <span class="badge-auto-inc" style="font-size:11px; font-weight:600; color:var(--emerald); background:rgba(16,185,129,0.15); padding:2px 6px; border-radius:4px; margin-left:4px;">Auto-Incremented</span> <span class="req">*</span>:</label>
-                                <div style="display: flex; gap: 8px;">
-                                    <input type="number" id="onboard-class-id" class="custom-input" placeholder="Auto-generating..." readonly style="font-weight: bold; color: var(--emerald); cursor: not-allowed;">
-                                    <button type="button" id="btn-refresh-class-id" class="btn-action" title="Refresh Next Class ID" style="padding: 0 12px;"><i class="fa-solid fa-rotate-right"></i></button>
-                                </div>
+                                <input type="number" id="onboard-class-id" class="custom-input" placeholder="Auto-generating..." readonly style="font-weight: bold; color: var(--emerald); cursor: not-allowed;">
                             </div>
                             <div class="form-group">
                                 <label><i class="fa-solid fa-copyright"></i> Brand Name <span class="req">*</span>:</label>
@@ -396,9 +393,14 @@
                             </div>
                         </div>
 
-                        <button id="btn-submit-onboard" class="btn btn-primary btn-glow btn-block">
-                            <i class="fa-solid fa-rocket"></i> Run New SKU Onboarding & Shelf Audit
-                        </button>
+                        <div style="display: flex; gap: 12px; margin-top: 16px;">
+                            <button type="button" id="btn-reset-onboard-form" class="btn btn-action" title="Clear form & reset data" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 12px 20px; font-weight: 600; cursor: pointer; border-radius: 8px; font-size: 14px; transition: all 0.2s ease;">
+                                <i class="fa-solid fa-rotate-left"></i> Reset Form
+                            </button>
+                            <button id="btn-submit-onboard" class="btn btn-primary btn-glow" style="flex: 1;">
+                                <i class="fa-solid fa-rocket"></i> Run New SKU Onboarding & Shelf Audit
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Live Pipeline Status Card -->
@@ -561,6 +563,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="/static/app.js?v=9.0"></script>
+    <script src="/static/app.js?v=10.0"></script>
 </body>
 </html>

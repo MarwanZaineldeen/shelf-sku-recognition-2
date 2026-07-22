@@ -1010,24 +1010,6 @@
       "evidence": "Manually Reviewed",
       "notes": ""
     },
-    "67": {
-      "raw_class_id": "67",
-      "training_class_id": 67,
-      "project_sku_id": "TM_RAW_067",
-      "brand": "Dreem",
-      "product_name": "Dreem jelly strawberry",
-      "variant": "jelly strawberry",
-      "size": "",
-      "pack_count": "31 crops",
-      "pack_type": "box",
-      "display_name": "Dreem jelly strawberry craft it with joy value pack X3",
-      "status": "verified",
-      "identity_confidence": "A",
-      "instance_count": 31,
-      "source_image_count": 31,
-      "evidence": "Onboarded via Web UI (Pipeline 2)",
-      "notes": "Dreem jelly strawberry craft it with joy value pack X3"
-    },
     "68": {
       "raw_class_id": "68",
       "training_class_id": 57,
@@ -1208,23 +1190,23 @@
       "evidence": "Manually Reviewed",
       "notes": ""
     },
-    "99": {
-      "raw_class_id": "99",
-      "training_class_id": 99,
-      "project_sku_id": "TM_RAW_099",
-      "brand": "test_family",
-      "product_name": "Product (Class 99)",
-      "variant": "",
+    "67": {
+      "raw_class_id": "67",
+      "training_class_id": 67,
+      "project_sku_id": "TM_RAW_067",
+      "brand": "Dreem",
+      "product_name": "Dreem jelly strawberry",
+      "variant": "jelly strawberry",
       "size": "",
-      "pack_count": "3 crops",
+      "pack_count": "31 crops",
       "pack_type": "box",
-      "display_name": "test_family Product (Class 99)",
+      "display_name": "Dreem jelly strawberry craft it with joy value pack X3",
       "status": "verified",
       "identity_confidence": "A",
-      "instance_count": 3,
-      "source_image_count": 3,
+      "instance_count": 93,
+      "source_image_count": 93,
       "evidence": "Onboarded via Web UI (Pipeline 2)",
-      "notes": "Dynamic Onboarding"
+      "notes": "Dreem jelly strawberry craft it with joy value pack X3"
     }
   }
 }

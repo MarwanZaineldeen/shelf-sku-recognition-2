@@ -880,6 +880,45 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    function resetOnboardingForm() {
+        // 1. Clear input text fields
+        const bEl = document.getElementById("onboard-brand"); if (bEl) bEl.value = "";
+        const pEl = document.getElementById("onboard-product-name"); if (pEl) pEl.value = "";
+        const vEl = document.getElementById("onboard-variant"); if (vEl) vEl.value = "";
+        const sEl = document.getElementById("onboard-size"); if (sEl) sEl.value = "";
+        const ptEl = document.getElementById("onboard-pack-type"); if (ptEl) ptEl.value = "box";
+        const dtEl = document.getElementById("onboard-display-title"); if (dtEl) dtEl.value = "";
+        const nEl = document.getElementById("onboard-notes"); if (nEl) nEl.value = "";
+        const fpEl = document.getElementById("onboard-folder-path"); if (fpEl) fpEl.value = "";
+        const fiEl = document.getElementById("onboard-file-input"); if (fiEl) fiEl.value = "";
+        const valEl = document.getElementById("onboard-val-shelf-input"); if (valEl) valEl.value = "";
+
+        // 2. Clear selected files & preview grid
+        onboardSelectedFiles = [];
+        if (onboardPreviewGrid) onboardPreviewGrid.innerHTML = "";
+
+        const badge = document.getElementById("onboard-count-badge");
+        if (badge) {
+            badge.innerText = "10 - 50 Crops Required";
+            badge.className = "badge badge-purple";
+        }
+
+        // 3. Reset diagnostic benchmark status panel
+        const placeholder = document.getElementById("onboard-status-placeholder");
+        const resultsPanel = document.getElementById("onboard-results-panel");
+        if (placeholder) placeholder.style.display = "block";
+        if (resultsPanel) resultsPanel.style.display = "none";
+
+        // 4. Re-fetch next auto-incremented class ID
+        fetchNextClassId();
+        showToast("Onboarding form reset successfully!");
+    }
+
+    const btnResetOnboardForm = document.getElementById("btn-reset-onboard-form");
+    if (btnResetOnboardForm) {
+        btnResetOnboardForm.addEventListener("click", resetOnboardingForm);
+    }
+
     if (btnSubmitOnboard) {
         btnSubmitOnboard.addEventListener("click", () => {
             const classId = document.getElementById("onboard-class-id").value;
