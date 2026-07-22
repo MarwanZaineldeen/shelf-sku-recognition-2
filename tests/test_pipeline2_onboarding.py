@@ -51,27 +51,29 @@ class TestPipeline2Onboarding(unittest.TestCase):
             crops_dir=self.nesquik_dir,
             class_id=70,
             old_class_id=700,
-            family_id="Nesquik"
+            family_id="Nesquik",
+            augment=False
         )
 
         self.assertEqual(res_nesquik["status"], "success")
-        self.assertEqual(res_nesquik["crops_added"], 45)
+        self.assertEqual(res_nesquik["crops_added"], 15)
 
-        # 2. Onboard Heinz dataset (Class ID: 71)
+        # 2. Onboard Heinz dataset with augmentation (Class ID: 71)
         res_heinz = self.onboarder.onboard_from_crops(
             crops_dir=self.heinz_dir,
             class_id=71,
             old_class_id=710,
-            family_id="Heinz tomato ketchup"
+            family_id="Heinz tomato ketchup",
+            augment=True
         )
 
         self.assertEqual(res_heinz["status"], "success")
         self.assertEqual(res_heinz["crops_added"], 147)
 
-        # 3. Verify total registered crops in SQLite DB (64 raw x 3 = 192)
+        # 3. Verify total registered crops in SQLite DB (15 + 147 = 162)
         embeddings, metadata = self.store.fetch_all_references()
         total_crops = len(embeddings)
-        self.assertEqual(total_crops, 192)
+        self.assertEqual(total_crops, 162)
 
         # 4. Verify vector dimensions
         self.assertEqual(embeddings.shape[1], 384)
@@ -79,7 +81,7 @@ class TestPipeline2Onboarding(unittest.TestCase):
         # 5. Verify brand clusters in metadata
         nesquik_meta = [m for m in metadata if m["family_id"] == "Nesquik"]
         heinz_meta = [m for m in metadata if m["family_id"] == "Heinz tomato ketchup"]
-        self.assertEqual(len(nesquik_meta), 45)
+        self.assertEqual(len(nesquik_meta), 15)
         self.assertEqual(len(heinz_meta), 147)
 
     def test_retrieval_query_on_onboarded_skus(self) -> None:
@@ -88,7 +90,7 @@ class TestPipeline2Onboarding(unittest.TestCase):
         self.onboarder.onboard_from_crops(self.heinz_dir, class_id=71, old_class_id=710, family_id="Heinz tomato ketchup")
 
         # Query using a Nesquik crop embedding DTO
-        nesquik_sample_path = sorted(list(self.nesquik_dir.glob("*.png")))[0]
+        nesquik_sample_path = sorted(list(self.nesquik_dir.glob("*.jpg")))[0]
         crop_dto = CropDTO(
             crop_id="query_nesquik",
             image_bytes=nesquik_sample_path.read_bytes(),
@@ -133,12 +135,12 @@ class TestPipeline2Onboarding(unittest.TestCase):
         )
 
         self.assertEqual(res["status"], "success")
-        self.assertEqual(res["crops_added"], 45)
+        self.assertEqual(res["crops_added"], 15)
 
         # Check metadata stored in DB
         embeddings, metadata = self.store.fetch_all_references()
         mock_meta = [m for m in metadata if m["family_id"] == "MockNesquik"]
-        self.assertEqual(len(mock_meta), 45)
+        self.assertEqual(len(mock_meta), 15)
         # Verify bounding box was cropped to detected coordinates
         self.assertEqual(mock_meta[0]["bbox"], [5.0, 5.0, 50.0, 50.0])
 
