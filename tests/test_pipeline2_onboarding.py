@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from PIL import Image
 
-from ml.base import EmbeddingDTO
+from ml.base import EmbeddingDTO, CropDTO, BBoxDTO
 from ml.embeddings.dinov2 import DINOv2Extractor
 from ml.retrieval.sqlite_registry import SQLiteGalleryStore
 from ml.retrieval.hierarchical_index import HierarchicalCosineIndex
