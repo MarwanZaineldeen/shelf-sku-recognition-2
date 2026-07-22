@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-workspace_root = Path("d:/Marwan/ITI AI&ML/Transmid GP")
+workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
 os.environ["HF_HOME"] = str(workspace_root / ".cache" / "huggingface")
 os.environ["HF_HUB_CACHE"] = str(workspace_root / ".cache" / "huggingface" / "hub")
 os.environ["HUGGINGFACE_HUB_CACHE"] = str(workspace_root / ".cache" / "huggingface" / "hub")

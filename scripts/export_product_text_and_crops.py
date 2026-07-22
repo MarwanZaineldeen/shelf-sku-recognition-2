@@ -6,7 +6,7 @@ import pandas as pd
 from pathlib import Path
 
 # Add workspace root to sys.path
-workspace_root = Path("d:/Marwan/ITI AI&ML/Transmid GP")
+workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
 sys.path.append(str(workspace_root))
 
 crop_metadata_path = workspace_root / "data/processed/crops/gt_clean/crop_metadata.csv"

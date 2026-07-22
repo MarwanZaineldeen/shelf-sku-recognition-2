@@ -46,7 +46,13 @@ class AuditPipelineOrchestrator:
         self.vlm_reranker = vlm_reranker
 
         self.sku_mapping: Dict[int, Dict[str, Any]] = {}
-        for path in ["configs/sku_mapping_v2.json", "c:/Users/asusd/Desktop/sku_mapping_v2.json", "configs/sku_mapping.json"]:
+        # Resolved relative to the repository so the catalog is found regardless
+        # of the working directory the server was launched from.
+        _repo_root = Path(__file__).resolve().parents[1]
+        for path in [
+            _repo_root / "configs/sku_mapping_v2.json",
+            _repo_root / "configs/sku_mapping.json",
+        ]:
             if Path(path).exists():
                 with open(path, "r", encoding="utf-8") as f:
                     raw_data = json.load(f).get("classes", {})
@@ -184,7 +190,8 @@ class AuditPipelineOrchestrator:
                     crop_bytes=crop_dto.image_bytes,
                     crop_data_url=crop_data_url,
                     top5_candidates=top5_cand_info,
-                    commercial_info=self._get_commercial_info(matches[0].remapped_class_id)
+                    commercial_info=self._get_commercial_info(matches[0].remapped_class_id),
+                    embedding=embedding_dto.vector
                 )
                 hitl_queue.append(pred)
                 continue
@@ -236,7 +243,8 @@ class AuditPipelineOrchestrator:
                 crop_bytes=crop_dto.image_bytes,
                 crop_data_url=crop_data_url,
                 top5_candidates=top5_cand_info,
-                commercial_info=self._get_commercial_info(best_match.remapped_class_id)
+                commercial_info=self._get_commercial_info(best_match.remapped_class_id),
+                embedding=embedding_dto.vector
             )
 
             if automated:

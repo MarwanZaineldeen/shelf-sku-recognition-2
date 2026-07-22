@@ -375,7 +375,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </select>
                 </td>
                 <td>
-                    <button class="btn btn-emerald btn-sm" onclick="saveHITLCorrection('${item.hitl_id}', '${item.crop_id}', '${parentName}')">
+                    <button class="btn btn-emerald btn-sm" onclick="saveHITLCorrection('${item.hitl_id}', '${item.crop_id}', '${parentName}', ${item.class_id === null ? -1 : item.class_id}, ${item.confidence || 0})">
                         <i class="fa-solid fa-floppy-disk"></i> Save & Upsert
                     </button>
                 </td>
@@ -386,7 +386,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // 6. Save HITL Correction to Active Database
-    window.saveHITLCorrection = function(hitlId, cropId, parentName) {
+    window.saveHITLCorrection = function(hitlId, cropId, parentName, predictedClassId, top1Similarity) {
         const selectEl = document.getElementById(`select-${hitlId}`);
         if (!selectEl) return;
 
@@ -398,6 +398,10 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("parent_image_name", parentName);
         formData.append("assigned_class_id", assignedClassId);
         formData.append("reviewer_id", "merchandiser_user");
+        // Sent so the server can still tell an approval from a correction if
+        // its audit-context cache has missed (e.g. a restart mid-review).
+        formData.append("predicted_class_id", predictedClassId);
+        formData.append("top1_similarity", top1Similarity);
 
         fetch("/v1/hitl/review", {
             method: "POST",

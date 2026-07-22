@@ -8,6 +8,7 @@ padding preprocessing to match the DB reference embeddings exactly.
 """
 
 import io
+import os
 import torch
 import numpy as np
 from PIL import Image, ImageOps
@@ -16,13 +17,12 @@ from pathlib import Path
 
 from ml.base import BaseEmbedder, CropDTO, EmbeddingDTO
 
-# Teammate's offline model weights location
+# Offline model weights, resolved relative to the repository so the extractor
+# is portable across machines. Override with the DINOV3_WEIGHTS_DIR
+# environment variable if the weights live elsewhere.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _PKG_MODEL_DIR = Path(
-    "d:/Marwan/ITI AI&ML/Transmid GP"
-    "/scratch/teammate_pkg"
-    "/dinov3_v2_exemplar_all_flat_offline_v1"
-    "/dinov3_v2_exemplar_all_flat_offline_v1"
-    "/model"
+    os.environ.get("DINOV3_WEIGHTS_DIR", _REPO_ROOT / "configs" / "weights" / "dinov3_vitb16")
 )
 
 # Teammate's preprocessing constants (must match how DB embeddings were built)
@@ -54,16 +54,43 @@ class DINOv3Extractor(BaseEmbedder):
         return self._dimension
 
     def initialize(self, config: Dict[str, Any]) -> None:
-        """Load DINOv3ViTModel from local safetensors via AutoModel."""
+        """Load DINOv3ViTModel from local safetensors.
+
+        The shipped ``config.json`` declares ``"model_type": "dinov2"`` while
+        its ``architectures`` field and its tensor names are DINOv3. AutoModel
+        dispatches on model_type, so it builds a DINOv2 graph, finds none of
+        the DINOv3 parameter names, and silently initialises the entire
+        backbone at random — producing embeddings that are meaningless but
+        perfectly well-formed. transformers 5.x now raises on this; older
+        versions did not.
+
+        Loading DINOv3ViTModel explicitly bypasses the faulty dispatch and
+        restores an exact weight match (0 missing / 0 unexpected keys).
+        AutoModel remains the fallback for any correctly-tagged checkpoint.
+        """
         from transformers import AutoModel, AutoImageProcessor
 
         model_path = str(self._model_dir)
+        if not self._model_dir.exists():
+            raise FileNotFoundError(
+                f"DINOv3 weights not found at '{model_path}'. Place the model "
+                f"directory there or set DINOV3_WEIGHTS_DIR."
+            )
+
         self.processor = AutoImageProcessor.from_pretrained(
             model_path, local_files_only=True
         )
-        self.model = AutoModel.from_pretrained(
-            model_path, local_files_only=True
-        )
+
+        try:
+            from transformers import DINOv3ViTModel
+            self.model = DINOv3ViTModel.from_pretrained(
+                model_path, local_files_only=True
+            )
+        except Exception:
+            self.model = AutoModel.from_pretrained(
+                model_path, local_files_only=True
+            )
+
         self.model.to(self.device).eval()
         self._dimension = self.model.config.hidden_size
         print(

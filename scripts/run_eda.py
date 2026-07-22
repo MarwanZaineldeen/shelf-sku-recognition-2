@@ -1,9 +1,12 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
 # Add src to python path to import eda
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
 
 from src.data.eda import DatasetValidator
 
@@ -144,19 +147,19 @@ def main():
     parser.add_argument(
         "--dataset-dir",
         type=str,
-        default="d:/Marwan/ITI AI&ML/Transmid GP/Transmed Lipton - Dataset",
+        default=str(workspace_root / "Transmed Lipton - Dataset"),
         help="Path to the folder containing images and txt files"
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="d:/Marwan/ITI AI&ML/Transmid GP/eda_outputs",
+        default=str(workspace_root / "eda_outputs"),
         help="Path to the directory where EDA output files will be saved"
     )
     parser.add_argument(
         "--report-path",
         type=str,
-        default="d:/Marwan/ITI AI&ML/Transmid GP/reports/eda_report.md",
+        default=str(workspace_root / "reports" / "eda_report.md"),
         help="Path to save the generated markdown report"
     )
     parser.add_argument(

@@ -20,7 +20,7 @@ from ml.fusion.lexicon_fusion import LexiconLateFusion
 from ml.decision.gated_policy import GatedAnnotationPolicy
 from ml.orchestrator import AuditPipelineOrchestrator
 
-workspace_root = Path("d:/Marwan/ITI AI&ML/Transmid GP")
+workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
 config_path = workspace_root / "configs/retrieval_config.yaml"
 lexicon_path = workspace_root / "configs/class_lexicons.json"
 

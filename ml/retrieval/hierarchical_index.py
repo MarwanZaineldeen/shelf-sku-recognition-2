@@ -30,12 +30,12 @@ class HierarchicalCosineIndex(VectorIndex, BaseRetriever):
             from ml.retrieval.sqlite_registry import SQLiteGalleryStore
             store = SQLiteGalleryStore()
             store.initialize({"db_path": db_path})
-            embeddings, metadata = store.fetch_all_references()
+            vectors, metadata = store.fetch_all_references()
             store.shutdown()
 
-            if embeddings:
-                vectors = np.array([e.vector for e in embeddings], dtype=np.float32)
-                self.add(vectors, metadata)
+            # fetch_all_references returns an (N, D) ndarray, not DTOs.
+            if vectors.shape[0] > 0:
+                self.add(vectors.astype(np.float32), metadata)
 
     def health_check(self) -> Tuple[bool, str]:
         if not self.brand_vectors or len(self.metadata) == 0:

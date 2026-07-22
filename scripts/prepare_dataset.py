@@ -1,11 +1,14 @@
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 import pandas as pd
 
 # Add src to python path to import modules
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
 
 from src.data.prepare_dataset import (
     scan_raw_dataset,
@@ -21,13 +24,13 @@ def main():
     parser.add_argument(
         "--raw-dir",
         type=str,
-        default="D:/Marwan/ITI AI&ML/Transmid GP/Transmed Lipton - Dataset",
+        default=str(workspace_root / "Transmed Lipton - Dataset"),
         help="Path to folder containing raw images and label text files"
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="D:/Marwan/ITI AI&ML/Transmid GP/data/processed/yolo_remapped",
+        default=str(workspace_root / "data" / "processed" / "yolo_remapped"),
         help="Path to save processed and remapped YOLO dataset"
     )
     parser.add_argument(

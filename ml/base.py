@@ -69,6 +69,14 @@ class PredictionDTO(BaseModel):
     crop_data_url: Optional[str] = Field(None, description="Base64 Data-URL string for UI rendering.")
     top5_candidates: Optional[List[Dict[str, Any]]] = Field(None, description="Top-5 candidate SKUs and similarities.")
     commercial_info: Optional[CommercialSKUDTO] = Field(None, description="Rich commercial SKU metadata.")
+    embedding: Optional[List[float]] = Field(
+        None,
+        description=(
+            "Query embedding computed during the audit. Retained for the Pipeline 3 "
+            "review loop so a reviewed crop carries its vector without a second "
+            "backbone pass. Internal only — never serialized into API responses."
+        ),
+    )
 
 
 # ==========================================

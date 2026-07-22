@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from ml.retrieval.sqlite_registry import SQLiteGalleryStore
 
-workspace_root = Path("d:/Marwan/ITI AI&ML/Transmid GP")
+workspace_root = Path(os.environ.get("RETAIL_AI_ROOT", Path(__file__).resolve().parents[1]))
 data_dir = workspace_root / "data/processed/crops/gt_clean"
 
 def migrate_pickle(pkl_name: str, db_name: str) -> None:
