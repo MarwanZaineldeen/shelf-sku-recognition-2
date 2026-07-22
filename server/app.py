@@ -715,7 +715,8 @@ async def onboard_sku(
                 old_class_id=effective_old_class_id,
                 family_id=family_cluster_id,
                 source_image=source_img_tag,
-                detector=detector_plugin
+                detector=detector_plugin,
+                augment=True
             )
             crops_added += res.get("crops_added", 0)
             new_version = res.get("db_version", new_version)
@@ -801,15 +802,75 @@ async def onboard_sku(
             )
             crops_added += 1
 
+            # Generate 3x Low-Quality Shelf Augmentation variants (Rotation, Brightness, Defocus Blur, Perspective Skewing)
+            try:
+                from PIL import Image, ImageEnhance, ImageFilter
+                import cv2
+                pil_raw = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+                sh, sw = img.shape[:2]
+
+                for aug_idx in range(2):
+                    aug = pil_raw.copy()
+                    b_factor = 0.75 if aug_idx == 0 else 1.25
+                    c_factor = 0.85 if aug_idx == 0 else 1.15
+                    aug = ImageEnhance.Brightness(aug).enhance(b_factor)
+                    aug = ImageEnhance.Contrast(aug).enhance(c_factor)
+
+                    angle = -14 if aug_idx == 0 else 14
+                    aug = aug.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False, fillcolor=(124, 116, 104))
+                    aug = aug.filter(ImageFilter.GaussianBlur(radius=1.2 if aug_idx == 0 else 0.8))
+
+                    cv_aug = cv2.cvtColor(np.array(aug), cv2.COLOR_RGB2BGR)
+                    pts1 = np.float32([[0, 0], [sw, 0], [0, sh], [sw, sh]])
+                    shift = int(min(sw, sh) * (0.08 if aug_idx == 0 else 0.12))
+                    pts2 = np.float32([[shift, 0], [sw - shift, 0], [0, sh], [sw, sh]]) if aug_idx == 0 else np.float32([[0, 0], [sw, 0], [shift, sh], [sw - shift, sh]])
+                    M = cv2.getPerspectiveTransform(pts1, pts2)
+                    skewed_np = cv2.warpPerspective(cv_aug, M, (sw, sh), borderValue=(124, 116, 104))
+
+                    success, enc_aug = cv2.imencode(".jpg", skewed_np)
+                    if success:
+                        aug_crop = CropDTO(
+                            crop_id=f"onboard_crop_{file.filename}_aug{aug_idx}.jpg",
+                            image_bytes=enc_aug.tobytes(),
+                            bbox=bbox,
+                            blur_score=0.0,
+                            aspect_ratio=float(sw) / float(max(1, sh))
+                        )
+                        aug_emb = embedder_plugin.extract_dto(aug_crop)
+                        db_store_plugin.save_reference(
+                            class_id=class_id,
+                            old_class_id=effective_old_class_id,
+                            crop_path=file.filename,
+                            family_id=family_cluster_id,
+                            source_image=f"{source_img_tag}_aug{aug_idx}",
+                            bbox=bbox,
+                            embedding=aug_emb
+                        )
+                        retriever_plugin.add(
+                            np.array([aug_emb.vector], dtype=np.float32),
+                            [{
+                                "crop_path": file.filename,
+                                "remapped_class_id": class_id,
+                                "old_class_id": effective_old_class_id,
+                                "family_id": family_cluster_id,
+                                "source_image_name": f"{source_img_tag}_aug{aug_idx}",
+                                "bbox": [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
+                            }]
+                        )
+                        crops_added += 1
+            except Exception as aug_err:
+                print(f"[Pipeline 2 Warning] Augmentation warning for {file.filename}: {aug_err}")
+
             # Sync 1st reference crop thumbnail to data/processed/Sku Preview/class_{class_id}/
-            if crops_added == 1:
+            if crops_added <= 3:
                 try:
                     preview_dir = workspace_root / "data/processed/Sku Preview" / f"class_{class_id}"
                     preview_dir.mkdir(parents=True, exist_ok=True)
                     preview_file = preview_dir / "crop_0.jpg"
-                    with open(preview_file, "wb") as pf:
-                        pf.write(img_bytes)
-                    print(f"[Pipeline 2] Synced catalog thumbnail to: {preview_file}")
+                    if not preview_file.exists():
+                        with open(preview_file, "wb") as pf:
+                            pf.write(img_bytes)
+                        print(f"[Pipeline 2] Synced catalog thumbnail to: {preview_file}")
                 except Exception as p_err:
                     print(f"[Pipeline 2 Warning] Failed to sync Sku Preview thumbnail: {p_err}")
 

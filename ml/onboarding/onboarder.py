@@ -432,7 +432,17 @@ class SKUOnboarder:
             }
 
         # 1. Run YOLO bounding box detection
-        boxes = detector.detect(img_np)
+        try:
+            boxes = detector.detect(shelf_img_bytes)
+        except Exception as det_err:
+            logger.warning(f"[Pipeline 2] Validation shelf detection error: {det_err}")
+            return {
+                "facings_detected": 0,
+                "mean_similarity": 0.0,
+                "pass_validation": False,
+                "recommendation": f"Shelf audit detection failed: {det_err}"
+            }
+
         if not boxes:
             return {
                 "facings_detected": 0,
@@ -441,12 +451,26 @@ class SKUOnboarder:
                 "recommendation": "No product bounding boxes localized on validation shelf photo."
             }
 
-        crop_generator = CropGenerator(padding=0.0)
+        h, w = img_np.shape[:2]
         matched_sims = []
         facings_count = 0
 
-        for box_dict in boxes[:50]:  # Evaluate up to 50 localized crops
-            crop_np, coords = crop_generator.extract_crop(img_np, box_dict)
+        for b in boxes[:50]:  # Evaluate up to 50 localized crops
+            b_x1 = getattr(b, "x1", 0.0)
+            b_y1 = getattr(b, "y1", 0.0)
+            b_x2 = getattr(b, "x2", float(w))
+            b_y2 = getattr(b, "y2", float(h))
+            b_conf = float(getattr(b, "confidence", 1.0))
+
+            x1 = max(0, int(b_x1) if b_x1 > 1.0 else int(b_x1 * w))
+            y1 = max(0, int(b_y1) if b_y1 > 1.0 else int(b_y1 * h))
+            x2 = min(w, int(b_x2) if b_x2 > 1.0 else int(b_x2 * w))
+            y2 = min(h, int(b_y2) if b_y2 > 1.0 else int(b_y2 * h))
+
+            if (x2 - x1) <= 5 or (y2 - y1) <= 5:
+                continue
+
+            crop_np = img_np[y1:y2, x1:x2]
             if crop_np.size == 0:
                 continue
 
@@ -457,12 +481,12 @@ class SKUOnboarder:
 
             h_crop, w_crop = crop_np.shape[:2]
             bbox_dto = BBoxDTO(
-                x1=float(coords[0]), y1=float(coords[1]),
-                x2=float(coords[2]), y2=float(coords[3]),
-                confidence=float(box_dict.get("confidence", 1.0))
+                x1=float(x1), y1=float(y1),
+                x2=float(x2), y2=float(y2),
+                confidence=b_conf
             )
             crop_dto = CropDTO(
-                crop_id=f"val_crop_{coords[0]}_{coords[1]}",
+                crop_id=f"val_crop_{x1}_{y1}",
                 image_bytes=crop_bytes,
                 bbox=bbox_dto,
                 blur_score=0.0,
@@ -471,14 +495,17 @@ class SKUOnboarder:
 
             # Extract embedding & query retriever
             embedding = self.embedder.extract_dto(crop_dto)
-            matches = self.retriever.search(embedding.vector, top_k=top_k)
+            matches = self.retriever.search_dto(embedding, top_k=top_k)
 
             # Check if target class_id is returned in top candidates
             for match in matches:
-                matched_cid = match.get("remapped_class_id", match.get("class_id"))
+                matched_cid = getattr(match, "remapped_class_id", None)
+                if matched_cid is None and hasattr(match, "metadata") and match.metadata:
+                    matched_cid = match.metadata.get("remapped_class_id")
+                
                 if matched_cid == class_id:
                     facings_count += 1
-                    sim_score = float(match.get("similarity", 0.0))
+                    sim_score = float(getattr(match, "similarity", 0.0))
                     matched_sims.append(sim_score)
                     break
 
