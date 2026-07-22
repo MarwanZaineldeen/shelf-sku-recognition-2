@@ -171,10 +171,10 @@ class SQLiteGalleryStore(BaseGalleryStore):
             version = cursor.lastrowid
 
             insert_data = []
-            for class_id, old_class_id, crop_path, family_id, source_image, bbox_coords, embedding_vector in references:
+            for idx, (class_id, old_class_id, crop_path, family_id, source_image, bbox_coords, embedding_vector) in enumerate(references):
                 vec_arr = np.array(embedding_vector, dtype=np.float32)
                 embedding_bytes = vec_arr.tobytes()
-                crop_id = f"crop_{version}_{os.path.basename(crop_path)}"
+                crop_id = f"crop_{version}_{idx}_{os.path.basename(crop_path)}"
                 
                 insert_data.append((
                     crop_id, class_id, old_class_id, crop_path, family_id,
