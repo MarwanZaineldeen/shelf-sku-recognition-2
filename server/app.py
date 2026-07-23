@@ -283,14 +283,14 @@ def startup_event():
         embedder_plugin = DINOv3Extractor(device="cpu")
         db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_dinov3.db")
         dimension = 768
-        retriever_plugin = HierarchicalCosineIndex(dimension=768)
+        retriever_plugin = NumpyCosineIndex(dimension=768)
         print("  Using DINOv3 ViT-B/16 SOTA 768-D Visual Backbone!", flush=True)
     except Exception as e:
         print(f"  DINOv3 offline model not available ({e}). Falling back to DINOv2 (384-D)...", flush=True)
         embedder_plugin = DINOv2Extractor(model_name="facebook/dinov2-small", device="cpu")
         db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_onboarding.db")
         dimension = 384
-        retriever_plugin = HierarchicalCosineIndex(dimension=384)
+        retriever_plugin = NumpyCosineIndex(dimension=384)
 
     vlm_reranker_plugin = None
     try:
