@@ -1194,19 +1194,19 @@
       "raw_class_id": "68",
       "training_class_id": 68,
       "project_sku_id": "TM_RAW_068",
-      "brand": "Nescafe",
-      "product_name": "Nescafe Gold",
-      "variant": "",
-      "size": "47.5g",
+      "brand": "Nesquik",
+      "product_name": "Chocolate Drink Mix",
+      "variant": "Cocoa Powder",
+      "size": "400g",
       "pack_count": "34 crops",
-      "pack_type": "bottle",
-      "display_name": "Nescafe Gold - 47.5g",
+      "pack_type": "pouch/container",
+      "display_name": "Nesquik Chocolate Drink Mix - 400g Pouch",
       "status": "verified",
       "identity_confidence": "A",
       "instance_count": 102,
       "source_image_count": 102,
       "evidence": "Onboarded via Web UI (Pipeline 2)",
-      "notes": "Nescafe Gold - 47.5g"
+      "notes": "Rich chocolate flavoured milk powder drink mix"
     }
   }
 }

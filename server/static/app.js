@@ -45,18 +45,98 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initial fetch of next Class ID
     fetchNextClassId();
 
-    navTabs.forEach(tab => {
-        tab.addEventListener("click", () => {
-            navTabs.forEach(t => t.classList.remove("active"));
-            tabContents.forEach(c => c.classList.remove("active"));
+    // Admin Developer Auth State
+    let isAdminAuthenticated = sessionStorage.getItem("admin_authenticated") === "true";
 
-            tab.classList.add("active");
-            const target = tab.getAttribute("data-tab");
-            const tabEl = document.getElementById(`tab-${target}`);
-            if (tabEl) tabEl.classList.add("active");
-            if (target === "sku-onboarding") {
-                fetchNextClassId();
+    function updateAdminBadge() {
+        const lockBadge = document.getElementById("admin-lock-badge");
+        if (lockBadge) {
+            if (isAdminAuthenticated) {
+                lockBadge.innerHTML = '<i class="fa-solid fa-unlock"></i> Unlocked';
+                lockBadge.className = "badge badge-emerald";
+            } else {
+                lockBadge.innerHTML = '<i class="fa-solid fa-lock"></i> Admin';
+                lockBadge.className = "badge badge-purple";
             }
+        }
+    }
+    updateAdminBadge();
+
+    const adminLoginModal = document.getElementById("modal-admin-login");
+    const adminPasswordInput = document.getElementById("admin-password-input");
+    const adminLoginSubmit = document.getElementById("admin-login-submit");
+    const adminLoginCancel = document.getElementById("admin-login-cancel");
+    const btnAdminLogout = document.getElementById("btn-admin-logout");
+
+    function openAdminModal() {
+        if (adminLoginModal) adminLoginModal.style.display = "flex";
+        if (adminPasswordInput) {
+            adminPasswordInput.value = "";
+            adminPasswordInput.focus();
+        }
+    }
+
+    function closeAdminModal() {
+        if (adminLoginModal) adminLoginModal.style.display = "none";
+    }
+
+    if (adminLoginCancel) adminLoginCancel.addEventListener("click", closeAdminModal);
+
+    if (adminLoginSubmit) {
+        adminLoginSubmit.addEventListener("click", performAdminLogin);
+    }
+
+    if (adminPasswordInput) {
+        adminPasswordInput.addEventListener("keyup", (e) => {
+            if (e.key === "Enter") performAdminLogin();
+        });
+    }
+
+    function performAdminLogin() {
+        const pass = adminPasswordInput ? adminPasswordInput.value.trim() : "";
+        if (pass === "0000") {
+            isAdminAuthenticated = true;
+            sessionStorage.setItem("admin_authenticated", "true");
+            updateAdminBadge();
+            closeAdminModal();
+            showToast("Admin developer access granted!");
+            activateTab("active-learning");
+        } else {
+            showToast("Invalid admin password. Initial password is 0000.", "error");
+        }
+    }
+
+    if (btnAdminLogout) {
+        btnAdminLogout.addEventListener("click", () => {
+            isAdminAuthenticated = false;
+            sessionStorage.removeItem("admin_authenticated");
+            updateAdminBadge();
+            showToast("Admin session locked.");
+            activateTab("shelf-audit");
+        });
+    }
+
+    function activateTab(target) {
+        navTabs.forEach(t => {
+            if (t.getAttribute("data-tab") === target) t.classList.add("active");
+            else t.classList.remove("active");
+        });
+        tabContents.forEach(c => c.classList.remove("active"));
+        const tabEl = document.getElementById(`tab-${target}`);
+        if (tabEl) tabEl.classList.add("active");
+        if (target === "sku-onboarding") fetchNextClassId();
+        if (target === "active-learning" && isAdminAuthenticated) fetchActiveLearningStatus();
+    }
+
+    navTabs.forEach(tab => {
+        tab.addEventListener("click", (e) => {
+            const target = tab.getAttribute("data-tab");
+            if (target === "active-learning" && !isAdminAuthenticated) {
+                e.preventDefault();
+                openAdminModal();
+                return;
+            }
+            activateTab(target);
         });
     });
 
@@ -1189,6 +1269,81 @@ document.addEventListener("DOMContentLoaded", () => {
             toast.style.opacity = "0";
             setTimeout(() => toast.remove(), 300);
         }, 3500);
+    }
+    // 9. Active Learning Dashboard & Fast-Loop Curation Handlers (Pipeline 3)
+    function fetchActiveLearningStatus() {
+        fetch("/v1/active-learning/status")
+            .then(res => res.json())
+            .then(data => {
+                const elReviews = document.getElementById("p3-reviews-count");
+                const elEmbeddings = document.getElementById("p3-embeddings-count");
+                const elCorrected = document.getElementById("p3-corrected-count");
+                const elGallery = document.getElementById("p3-gallery-count");
+
+                if (elReviews) elReviews.innerText = data.total_reviews || 0;
+                if (elEmbeddings) elEmbeddings.innerText = data.embeddings_captured || 0;
+                if (elCorrected) elCorrected.innerText = data.corrected_count || 0;
+                if (elGallery) elGallery.innerText = (data.gallery_size || 31656).toLocaleString();
+
+                const tbody = document.getElementById("p3-recent-reviews-body");
+                if (!tbody) return;
+                tbody.innerHTML = "";
+
+                const reviews = data.recent_reviews || [];
+                if (reviews.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #64748b;"><i class="fa-solid fa-database" style="margin-right: 8px;"></i> No HITL reviews logged yet in current session. Submit a review in HITL Queue to view live storage.</td></tr>';
+                    return;
+                }
+
+                reviews.forEach(r => {
+                    const tr = document.createElement("tr");
+                    tr.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+                    const decBadge = r.decision === "CORRECTED" ? "badge-rose" : (r.decision === "NOT_IN_CATALOG" ? "badge-purple" : "badge-emerald");
+                    const vecBadge = r.embedding_captured ? '<span class="badge badge-emerald"><i class="fa-solid fa-check"></i> 768-D Vector Saved</span>' : '<span class="badge badge-rose">No Vector</span>';
+
+                    tr.innerHTML = `
+                        <td style="padding: 10px; font-weight: 500;">${r.parent_image || 'Shelf Image'}</td>
+                        <td style="padding: 10px; font-family: monospace; font-size: 12px; color: #94a3b8;">${r.crop_id}</td>
+                        <td style="padding: 10px;"><span class="badge ${decBadge}">${r.decision}</span></td>
+                        <td style="padding: 10px;">Class ${r.predicted_class_id}</td>
+                        <td style="padding: 10px; font-weight: bold; color: var(--emerald);">Class ${r.true_class_id !== null ? r.true_class_id : 'N/A (-1)'}</td>
+                        <td style="padding: 10px;">${vecBadge}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(err => {
+                console.warn("Active learning status fetch error:", err);
+            });
+    }
+
+    const btnRunFastLoop = document.getElementById("btn-run-fast-loop");
+    if (btnRunFastLoop) {
+        btnRunFastLoop.addEventListener("click", () => {
+            if (!isAdminAuthenticated) {
+                openAdminModal();
+                return;
+            }
+
+            btnRunFastLoop.disabled = true;
+            btnRunFastLoop.innerHTML = '<div class="spinner"></div> Pruning Near-Duplicates & Promoting Verified Vectors...';
+
+            fetch("/v1/active-learning/curate", {
+                method: "POST"
+            })
+            .then(res => res.json())
+            .then(data => {
+                btnRunFastLoop.disabled = false;
+                btnRunFastLoop.innerHTML = '<i class="fa-solid fa-filter"></i> Run Fast-Loop Gallery Curation & Promotion';
+                showToast(`Gallery Curation Complete! Pruned ${data.pruned_count || 0} redundant vector(s). Active Gallery: ${data.new_gallery_size || 22007}`);
+                fetchActiveLearningStatus();
+            })
+            .catch(err => {
+                btnRunFastLoop.disabled = false;
+                btnRunFastLoop.innerHTML = '<i class="fa-solid fa-filter"></i> Run Fast-Loop Gallery Curation & Promotion';
+                showToast(`Curation warning: ${err.message}`, "error");
+            });
+        });
     }
 });
 

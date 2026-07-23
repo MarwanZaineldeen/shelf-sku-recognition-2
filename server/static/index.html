@@ -42,6 +42,9 @@
                 <button class="nav-tab" data-tab="latency-benchmark">
                     <i class="fa-solid fa-chart-line"></i> Latency & Architecture
                 </button>
+                <button class="nav-tab nav-tab-highlight" data-tab="active-learning" id="nav-tab-active-learning" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
+                    <i class="fa-solid fa-brain"></i> Continual Learning <span class="badge badge-purple" id="admin-lock-badge" style="font-size: 10px; margin-left: 4px;"><i class="fa-solid fa-lock"></i> Admin</span>
+                </button>
             </nav>
         </div>
         <div class="nav-right">
@@ -528,9 +531,96 @@
                     </div>
                 </div>
             </div>
+        <!-- Tab 5: Active Continual Learning (Pipeline 3 Admin Panel) -->
+        <section id="tab-active-learning" class="tab-content">
+            <div class="glass-panel section-panel">
+                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h2><i class="fa-solid fa-brain" style="color: var(--purple-light);"></i> Active Continual Learning Workbench (Pipeline 3)</h2>
+                        <p class="panel-desc">Monitors human review persistence into ReviewStore (reviews.db), tracks 768-D DINOv3 feature capture, and executes automated fast-loop gallery vector curation.</p>
+                    </div>
+                    <button class="btn btn-secondary" id="btn-admin-logout" style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); padding: 8px 16px; font-weight: 600; font-size: 13px;">
+                        <i class="fa-solid fa-right-from-bracket"></i> Lock Admin Session
+                    </button>
+                </div>
+
+                <!-- ReviewStore Diagnostic Cards -->
+                <div class="result-stats-grid" style="margin-bottom: 24px;">
+                    <div class="stat-box glass-panel">
+                        <span class="stat-label">HITL Reviews Logged</span>
+                        <span class="stat-val purple" id="p3-reviews-count">0</span>
+                    </div>
+                    <div class="stat-box glass-panel">
+                        <span class="stat-label">768-D Embeddings Captured</span>
+                        <span class="stat-val emerald" id="p3-embeddings-count">0</span>
+                    </div>
+                    <div class="stat-box glass-panel">
+                        <span class="stat-label">Corrected Reviews</span>
+                        <span class="stat-val rose" id="p3-corrected-count">0</span>
+                    </div>
+                    <div class="stat-box glass-panel">
+                        <span class="stat-label">Active Gallery Size</span>
+                        <span class="stat-val cyan" id="p3-gallery-count">31,656</span>
+                    </div>
+                </div>
+
+                <!-- Loop Actions Panel -->
+                <div class="glass-panel" style="padding: 24px; margin-bottom: 24px; border: 1px solid rgba(168,85,247,0.3); background: rgba(168,85,247,0.04);">
+                    <h3 style="margin-bottom: 12px; font-size: 16px; color: #e9d5ff;"><i class="fa-solid fa-bolt" style="color: var(--amber);"></i> Fast-Loop Gallery Vector Curation</h3>
+                    <p style="color: #94a3b8; font-size: 13px; margin-bottom: 16px; line-height: 1.5;">Runs k-center greedy coverage and per-class vector capping (max 500 vectors/SKU) to prune redundant embeddings and promote human-verified review crops into the production gallery database.</p>
+                    
+                    <button class="btn btn-primary btn-glow" id="btn-run-fast-loop" style="background: linear-gradient(135deg, #a855f7, #7e22ce); border: none;">
+                        <i class="fa-solid fa-filter"></i> Run Fast-Loop Gallery Curation & Promotion
+                    </button>
+                </div>
+
+                <!-- Recent Reviews Audit Log -->
+                <div class="glass-panel" style="padding: 20px;">
+                    <h3 style="margin-bottom: 16px; font-size: 16px;"><i class="fa-solid fa-list-check"></i> Live HITL Review Persistence Log (reviews.db)</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 13px;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8;">
+                                    <th style="padding: 10px;">Audit Image</th>
+                                    <th style="padding: 10px;">Crop ID</th>
+                                    <th style="padding: 10px;">Decision</th>
+                                    <th style="padding: 10px;">Predicted Class</th>
+                                    <th style="padding: 10px;">True Assigned Class</th>
+                                    <th style="padding: 10px;">768-D Vector Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="p3-recent-reviews-body">
+                                <tr><td colspan="6" style="padding: 20px; text-align: center; color: #64748b;"><i class="fa-solid fa-database" style="margin-right: 8px;"></i> No HITL reviews logged yet in current session. Submit a review in HITL Queue to view live storage.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </section>
 
     </main>
+
+    <!-- Developer Admin Login Modal -->
+    <div class="modal-overlay" id="modal-admin-login" style="display: none;">
+        <div class="modal-card glass-panel" style="max-width: 420px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+                <h3><i class="fa-solid fa-user-shield" style="color: var(--purple-light); margin-right: 8px;"></i> Developer Admin Authentication</h3>
+            </div>
+            <div class="modal-body" style="padding: 20px 16px;">
+                <p style="color: #94a3b8; font-size: 13.5px; margin-bottom: 20px; line-height: 1.5;">
+                    Access to Pipeline 3 Active Continual Learning, vector gallery curation, and confusion mining requires developer privileges.
+                </p>
+                <div class="form-group" style="text-align: left;">
+                    <label><i class="fa-solid fa-key"></i> Enter Developer Password <span style="font-size: 11px; color: var(--emerald); margin-left: 6px; font-weight: 600;">(Initial Password: 0000)</span>:</label>
+                    <input type="password" id="admin-password-input" class="custom-input" placeholder="Enter password (0000)" style="letter-spacing: 4px; font-size: 18px; text-align: center; font-weight: bold;">
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button class="btn btn-secondary" id="admin-login-cancel">Cancel</button>
+                <button class="btn btn-primary" id="admin-login-submit"><i class="fa-solid fa-right-to-bracket"></i> Authenticate & Unlock</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Correction Modal -->
     <div class="modal-overlay" id="correction-modal" style="display: none;">
