@@ -115,25 +115,34 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 def get_favicon():
     return Response(status_code=204)
 
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static") or request.url.path in ("/", "/app.js", "/style.css"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 @app.get("/")
 def get_dashboard():
     index_html = static_dir / "index.html"
     if index_html.exists():
-        return FileResponse(index_html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+        return FileResponse(index_html, headers={"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"})
     return JSONResponse({"message": "Retail AI API running. UI index.html not found."})
 
 @app.get("/style.css")
 def get_style():
     style_css = static_dir / "style.css"
     if style_css.exists():
-        return FileResponse(style_css, media_type="text/css")
+        return FileResponse(style_css, media_type="text/css", headers={"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"})
     return HTTPException(status_code=404, detail="style.css not found")
 
 @app.get("/app.js")
 def get_app_js():
     app_js = static_dir / "app.js"
     if app_js.exists():
-        return FileResponse(app_js, media_type="application/javascript")
+        return FileResponse(app_js, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"})
     return HTTPException(status_code=404, detail="app.js not found")
 
 @app.get("/api/catalog")

@@ -631,10 +631,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert(`Failed to save review: ${err.message}`);
             });
     };
-            .catch(err => {
-                alert(`Failed to save review: ${err.message}`);
-            });
-    };
 
     // 7. Commercial Catalog Explorer Grid, Multi-Select & Deletion Engine
     let isCatalogMultiSelectMode = false;
