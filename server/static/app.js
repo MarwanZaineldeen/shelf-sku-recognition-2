@@ -334,9 +334,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const allItems = [...allAnnotations, ...allHITL];
 
         allItems.forEach((item, index) => {
-            const isAuto = item.is_automated || item.automated;
-            if (activeFilter === "auto" && !isAuto) return;
-            if (activeFilter === "hitl" && isAuto) return;
+            const isUnknown = (item.class_id === -1 || (item.commercial_sku && item.commercial_sku.display_name === "Class Unknown"));
+            const isAuto = (item.is_automated || item.automated) && !isUnknown;
+
+            if (activeFilter === "auto" && (!isAuto || isUnknown)) return;
+            if (activeFilter === "hitl" && (isAuto || isUnknown)) return;
+            if (activeFilter === "unknown" && !isUnknown) return;
 
             const bbox = item.bbox;
             const x = bbox.x1;
@@ -346,13 +349,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const isSelected = (index === selectedCropIndex);
 
-            if (isAuto) {
-                ctx.strokeStyle = "#10b981"; // Emerald
-                ctx.fillStyle = "rgba(16, 185, 129, 0.15)";
-            } else {
-                ctx.strokeStyle = "#f43f5e"; // Rose
-                ctx.fillStyle = "rgba(244, 63, 94, 0.15)";
+            let strokeColor = "#10b981"; // Green (Auto)
+            let fillColor = "rgba(16, 185, 129, 0.15)";
+            let badgeBg = "rgba(16, 185, 129, 0.9)";
+
+            if (isUnknown) {
+                strokeColor = "#f43f5e"; // Rose Red (Unknown)
+                fillColor = "rgba(244, 63, 94, 0.2)";
+                badgeBg = "rgba(244, 63, 94, 0.9)";
+            } else if (!isAuto) {
+                strokeColor = "#f59e0b"; // Amber (HITL)
+                fillColor = "rgba(245, 158, 11, 0.2)";
+                badgeBg = "rgba(245, 158, 11, 0.9)";
             }
+
+            ctx.strokeStyle = strokeColor;
+            ctx.fillStyle = fillColor;
 
             if (isSelected) {
                 ctx.strokeStyle = "#06b6d4"; // Cyan highlight
@@ -367,14 +379,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Bounding box title tag
             const title = formatClassTitle(item.class_id, item.commercial_sku);
-            const probText = `${(item.confidence * 100).toFixed(0)}%`;
-            const labelText = `${title} (${probText})`;
+            const probText = item.confidence ? `${(item.confidence * 100).toFixed(0)}%` : `0%`;
+            const labelText = isUnknown ? `Unknown Class (-1)` : `${title} (${probText})`;
 
             ctx.font = "bold 11px Outfit, sans-serif";
             const textWidth = ctx.measureText(labelText).width;
             const badgeHeight = 18;
 
-            ctx.fillStyle = isAuto ? "rgba(16, 185, 129, 0.9)" : "rgba(244, 63, 94, 0.9)";
+            ctx.fillStyle = isSelected ? "rgba(6, 182, 212, 0.95)" : badgeBg;
             ctx.fillRect(x, Math.max(0, y - badgeHeight), textWidth + 10, badgeHeight);
 
             ctx.fillStyle = "#ffffff";
@@ -565,7 +577,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <select id="select-${item.hitl_id}" class="custom-select" style="flex:1;min-width:200px;font-size:12px;padding:6px 10px;">
                             ${optionsHtml}
                         </select>
-                        <button class="btn btn-emerald btn-sm" style="white-space:nowrap;" onclick="saveHITLCorrection('${item.hitl_id}', '${item.crop_id}', '${parentName}')">
+                        <button class="btn btn-emerald btn-sm" style="white-space:nowrap;" onclick="saveHITLCorrection('${item.hitl_id}', '${item.crop_id}', '${parentName}', ${item.predicted_class_id || item.class_id || -1}, ${item.top1_similarity || item.confidence || 0.0})">
                             <i class="fa-solid fa-floppy-disk"></i> Save & Upsert
                         </button>
                     </div>
@@ -583,16 +595,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const assignedClassId = parseInt(selectEl.value);
 
+        const safePredId = (predictedClassId !== undefined && predictedClassId !== null && !isNaN(predictedClassId)) ? predictedClassId : -1;
+        const safeSim = (top1Similarity !== undefined && top1Similarity !== null && !isNaN(top1Similarity)) ? top1Similarity : 0.0;
+
         const formData = new FormData();
         formData.append("hitl_id", hitlId);
         formData.append("crop_id", cropId);
         formData.append("parent_image_name", parentName);
         formData.append("assigned_class_id", assignedClassId);
         formData.append("reviewer_id", "merchandiser_user");
-        // Sent so the server can still tell an approval from a correction if
-        // its audit-context cache has missed (e.g. a restart mid-review).
-        formData.append("predicted_class_id", predictedClassId);
-        formData.append("top1_similarity", top1Similarity);
+        formData.append("predicted_class_id", safePredId);
+        formData.append("top1_similarity", safeSim);
 
         fetch("/v1/hitl/review", {
             method: "POST",
@@ -600,19 +613,24 @@ document.addEventListener("DOMContentLoaded", () => {
         })
             .then(res => res.json())
             .then(data => {
+                showToast(`Review logged into reviews.db! Decision: ${data.embedding_captured ? '768-D Vector Captured' : 'Saved'}`);
                 const row = document.getElementById(`row-${hitlId}`);
                 if (row) {
                     row.style.transition = "all 0.4s ease";
                     row.style.background = "rgba(16, 185, 129, 0.2)";
                     setTimeout(() => {
                         row.remove();
-                        // Update HITL badge count
                         const remaining = document.querySelectorAll("#hitl-queue-tbody tr").length;
                         const elNavHitl = document.getElementById("nav-hitl-count");
                         if (elNavHitl) elNavHitl.innerText = remaining;
                     }, 400);
                 }
+                if (isAdminAuthenticated) fetchActiveLearningStatus();
             })
+            .catch(err => {
+                alert(`Failed to save review: ${err.message}`);
+            });
+    };
             .catch(err => {
                 alert(`Failed to save review: ${err.message}`);
             });
@@ -1218,6 +1236,8 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("parent_image_name", parentName);
         formData.append("assigned_class_id", newClassId);
         formData.append("reviewer_id", "merchandiser_auditor");
+        formData.append("predicted_class_id", item.predicted_class_id || item.class_id || -1);
+        formData.append("top1_similarity", item.confidence || 0.0);
 
         fetch("/v1/hitl/review", {
             method: "POST",
@@ -1242,6 +1262,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (auditData) updateMetrics(auditData);
             openInspectorDrawer(item);
             renderCanvasBoxes();
+            if (isAdminAuthenticated) fetchActiveLearningStatus();
         })
         .catch(err => {
             showToast(`Correction failed: ${err.message}`, "error");

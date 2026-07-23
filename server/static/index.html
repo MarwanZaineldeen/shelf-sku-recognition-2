@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css?v=10.0">
+    <link rel="stylesheet" href="/static/style.css?v=11.0">
 </head>
 <body class="dark-theme">
     <!-- Header Navbar -->
@@ -82,6 +82,7 @@
                         <button class="filter-btn active" data-filter="all">All</button>
                         <button class="filter-btn filter-auto" data-filter="auto"><i class="fa-solid fa-circle-check"></i> Automated</button>
                         <button class="filter-btn filter-hitl" data-filter="hitl"><i class="fa-solid fa-triangle-exclamation"></i> HITL Queue</button>
+                        <button class="filter-btn filter-unknown" data-filter="unknown" style="background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.4); color: #f43f5e;"><i class="fa-solid fa-circle-question"></i> Unknown (Red)</button>
                     </div>
                 </div>
             </div>
@@ -133,7 +134,8 @@
                         <h3 style="margin:0;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-crosshairs"></i> Shelf Product Bounding Box Overlay</h3>
                         <div class="legend-group" style="display:flex;align-items:center;gap:16px;margin-left:auto;margin-right:16px;">
                             <span class="legend-item" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;"><span class="legend-dot green"></span> Automated Match</span>
-                            <span class="legend-item" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;"><span class="legend-dot red"></span> HITL Queue Match</span>
+                            <span class="legend-item" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;"><span class="legend-dot amber" style="background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);"></span> HITL Queue Match</span>
+                            <span class="legend-item" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;"><span class="legend-dot red" style="background:#f43f5e;box-shadow:0 0 8px rgba(244,63,94,0.6);"></span> Unknown Class (Red)</span>
                         </div>
                         <button id="btn-export-txt" class="btn btn-emerald btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Export Audit (.txt)</button>
                     </div>
@@ -653,6 +655,6 @@
     </div>
 
     <!-- App Script -->
-    <script src="/static/app.js?v=10.0"></script>
+    <script src="/static/app.js?v=11.0"></script>
 </body>
 </html>

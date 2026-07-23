@@ -589,10 +589,20 @@ async def save_hitl_review(
     parent_image_name: str = Form(...),
     assigned_class_id: int = Form(...),
     reviewer_id: str = Form("merchandiser_user"),
-    predicted_class_id: int = Form(-1),
-    top1_similarity: float = Form(0.0)
+    predicted_class_id: Optional[Any] = Form(-1),
+    top1_similarity: Optional[Any] = Form(0.0)
 ):
     """Saves human reviewer correction/confirmation to active SQLite DB for Pipeline 3 Continual Learning."""
+    try:
+        clean_pred_id = int(predicted_class_id) if predicted_class_id not in (None, "", "undefined", "null") else -1
+    except (ValueError, TypeError):
+        clean_pred_id = -1
+
+    try:
+        clean_sim = float(top1_similarity) if top1_similarity not in (None, "", "undefined", "null") else 0.0
+    except (ValueError, TypeError):
+        clean_sim = 0.0
+
     disp_name = "Class Unknown"
     if orchestrator and assigned_class_id != -1 and hasattr(orchestrator, "sku_mapping"):
         disp_name = orchestrator.sku_mapping.get(assigned_class_id, {}).get("display_name", f"Class {assigned_class_id}")
@@ -624,10 +634,10 @@ async def save_hitl_review(
                 assigned_class_id=assigned_class_id,
                 reviewer_id=reviewer_id,
                 context=cached_context,
-                predicted_class_id=predicted_class_id if predicted_class_id != -1 else None,
-                top1_similarity=top1_similarity
+                predicted_class_id=clean_pred_id if clean_pred_id != -1 else None,
+                top1_similarity=clean_sim
             )
-            hitl_reviews_counter.labels(type="correction" if assigned_class_id != predicted_class_id else "confirmation").inc()
+            hitl_reviews_counter.labels(type="correction" if assigned_class_id != clean_pred_id else "confirmation").inc()
             print(f"[Pipeline 3] Persisted review '{recorded_review_id}' to reviews.db (embedding_captured={embedding_captured})")
         except Exception as rev_err:
             print(f"[Pipeline 3 Warning] ReviewStore ingest note: {rev_err}")
