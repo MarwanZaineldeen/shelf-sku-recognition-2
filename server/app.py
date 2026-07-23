@@ -55,46 +55,51 @@ app = FastAPI(
     version="1.0.0"
 )
 
-from prometheus_fastapi_instrumentator import Instrumentator
-from prometheus_client import Counter, Histogram, Gauge
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    from prometheus_client import Counter, Histogram, Gauge
 
-# 1. Initialize Prometheus Exporter
-instrumentator = Instrumentator().instrument(app)
+    instrumentator = Instrumentator().instrument(app)
 
-# 2. Custom Business & ML Metrics Definition
-stage_latency_histogram = Histogram(
-    "retail_ai_stage_latency_seconds",
-    "Execution time per pipeline stage in seconds",
-    ["stage"]  # yolo_detector, dinov3_embedder, vector_search, qwen2_vl, platt_calibrator
-)
+    stage_latency_histogram = Histogram(
+        "retail_ai_stage_latency_seconds",
+        "Execution time per pipeline stage in seconds",
+        ["stage"]
+    )
+    auto_annotation_ratio_gauge = Gauge(
+        "retail_ai_auto_annotation_ratio",
+        "Ratio of auto-approved facings vs total detected facings"
+    )
+    facings_detected_counter = Gauge(
+        "retail_ai_facings_detected_total",
+        "Total product facings detected across shelf scans"
+    )
+    vlm_triggers_counter = Counter(
+        "retail_ai_vlm_triggers_total",
+        "Total times Qwen2-VL reranker was activated for ambiguous crops"
+    )
+    hitl_reviews_counter = Counter(
+        "retail_ai_hitl_reviews_total",
+        "Total HITL reviews submitted by merchandisers",
+        ["type"]
+    )
+    sku_registry_count_gauge = Gauge(
+        "retail_ai_sqlite_vector_count",
+        "Total 768-D DINOv3 vectors indexed in SQLite registry"
+    )
+except ImportError:
+    class DummyMetric:
+        def labels(self, *args, **kwargs): return self
+        def observe(self, *args, **kwargs): pass
+        def set(self, *args, **kwargs): pass
+        def inc(self, *args, **kwargs): pass
 
-# Done
-auto_annotation_ratio_gauge = Gauge(
-    "retail_ai_auto_annotation_ratio",
-    "Ratio of auto-approved facings vs total detected facings"
-)
-
-facings_detected_counter = Gauge(
-    "retail_ai_facings_detected_total",
-    "Total product facings detected across shelf scans"
-)
-
-vlm_triggers_counter = Counter(
-    "retail_ai_vlm_triggers_total",
-    "Total times Qwen2-VL reranker was activated for ambiguous crops"
-)
-
-# Done
-hitl_reviews_counter = Counter(
-    "retail_ai_hitl_reviews_total",
-    "Total HITL reviews submitted by merchandisers",
-    ["type"]  # confirmation vs correction
-)
-
-sku_registry_count_gauge = Gauge(
-    "retail_ai_sqlite_vector_count",
-    "Total 768-D DINOv3 vectors indexed in SQLite registry"
-)
+    stage_latency_histogram = DummyMetric()
+    auto_annotation_ratio_gauge = DummyMetric()
+    facings_detected_counter = DummyMetric()
+    vlm_triggers_counter = DummyMetric()
+    hitl_reviews_counter = DummyMetric()
+    sku_registry_count_gauge = DummyMetric()
 
 # Mount static web frontend files
 static_dir = workspace_root / "server/static"
@@ -258,7 +263,8 @@ def startup_event():
     global calibrator_plugin, fusion_plugin, decision_policy_plugin, quality_gate_plugin, db_store_plugin
     global review_store_plugin, vlm_reranker_plugin, hitl_store_plugin
 
-    instrumentator.expose(app, endpoint="/metrics")
+    if "instrumentator" in globals() and instrumentator is not None:
+        instrumentator.expose(app, endpoint="/metrics")
 
     print("Starting up Retail AI Platform Service...", flush=True)
     with open(config_path, "r") as f:
