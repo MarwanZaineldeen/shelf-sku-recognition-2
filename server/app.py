@@ -681,24 +681,26 @@ async def get_active_learning_status():
     if review_store_plugin and getattr(review_store_plugin, "conn", None):
         try:
             cur = review_store_plugin.conn.cursor()
-            cur.execute("SELECT COUNT(*), SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END), SUM(CASE WHEN decision='CORRECTED' THEN 1 ELSE 0 END), SUM(CASE WHEN decision='APPROVED' THEN 1 ELSE 0 END) FROM reviews")
+            cur.execute("SELECT COUNT(*) AS cnt, SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END) AS emb_cnt, SUM(CASE WHEN decision='CORRECTED' THEN 1 ELSE 0 END) AS corr_cnt, SUM(CASE WHEN decision='APPROVED' THEN 1 ELSE 0 END) AS app_cnt FROM reviews")
             row = cur.fetchone()
             if row:
-                total_reviews = row[0] or 0
-                embeddings_captured = row[1] or 0
-                corrected_count = row[2] or 0
-                approved_count = row[3] or 0
+                r_dict = dict(row)
+                total_reviews = r_dict.get("cnt") or 0
+                embeddings_captured = r_dict.get("emb_cnt") or 0
+                corrected_count = r_dict.get("corr_cnt") or 0
+                approved_count = r_dict.get("app_cnt") or 0
 
-            cur.execute("SELECT review_id, source_image, decision, true_class_id, top1_predicted_class_id, (embedding IS NOT NULL) FROM reviews ORDER BY created_at DESC LIMIT 10")
+            cur.execute("SELECT review_id, source_image, decision, true_class_id, top1_predicted_class_id, (embedding IS NOT NULL) AS has_embed FROM reviews ORDER BY created_at DESC LIMIT 10")
             for r in cur.fetchall():
+                rd = dict(r)
                 recent_reviews.append({
-                    "review_id": r[0],
-                    "parent_image": r[1],
-                    "crop_id": r[0][:12],
-                    "decision": r[2],
-                    "true_class_id": r[3],
-                    "predicted_class_id": r[4],
-                    "embedding_captured": bool(r[5])
+                    "review_id": rd["review_id"],
+                    "parent_image": rd["source_image"],
+                    "crop_id": rd["review_id"][:12],
+                    "decision": rd["decision"],
+                    "true_class_id": rd["true_class_id"],
+                    "predicted_class_id": rd["top1_predicted_class_id"],
+                    "embedding_captured": bool(rd["has_embed"])
                 })
         except Exception as e:
             print(f"[Pipeline 3 Warning] Active learning status query error: {e}")
