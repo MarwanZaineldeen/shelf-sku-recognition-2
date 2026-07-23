@@ -167,6 +167,21 @@ class Qwen2VLReranker:
                 print(f"[Qwen2VL] Heavy model generation fallback: {e}")
 
         # Lightweight Zero-Shot Text & Packaging Variant Matcher with 80/20 Weighted Score Fusion
+        top_cand_sim = top5_candidates[0].get("similarity", 0.0) if top5_candidates else 0.0
+        if top_cand_sim < 0.62:
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            print(f"[Qwen2VL] Open-Set Rejection: Top similarity ({top_cand_sim:.4f}) < 0.62 -> Assigned 'Class Unknown' (-1) in {elapsed_ms:.1f}ms.")
+            unknown_cand = {
+                "class_id": -1,
+                "display_name": "Class Unknown",
+                "similarity": top_cand_sim,
+                "s_fused": top_cand_sim,
+                "vlm_selected": True,
+                "qwen2_vl_verified": True,
+                "vlm_selected_rank": 1
+            }
+            return [unknown_cand] + [dict(c) for c in top5_candidates]
+
         best_idx = 0
         max_vlm_score = -1.0
 

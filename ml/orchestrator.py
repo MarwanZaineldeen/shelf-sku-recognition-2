@@ -246,13 +246,13 @@ class AuditPipelineOrchestrator:
                             vlm_verified_name = vlm_pick.get("display_name")
                             fused_s = vlm_pick.get("s_fused", best_match.similarity)
 
-                            if fused_s < T_LOW:
+                            if fused_s < T_LOW or vlm_class_id == -1:
                                 final_class_id = -1
                             else:
+                                final_class_id = vlm_class_id
                                 for m in matches:
                                     if m.remapped_class_id == vlm_class_id:
                                         best_match = m
-                                        final_class_id = m.remapped_class_id
                                         break
                             confidence_prob = fused_s
                             top5_cand_info = reranked  # propagate VLM-reranked order to UI
