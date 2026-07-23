@@ -98,14 +98,30 @@ We evaluated **5 vision embedding architectures** on our 67-class commercial FMC
 
 ---
 
-## 💻 Web Dashboard & Senior UI/UX Features
+## 💻 Web Dashboard
 
-The web frontend (`server/static/index.html`) is built with modern vanilla CSS glassmorphism, Google Fonts (`Inter`, `Outfit`), and FontAwesome icons:
+The frontend lives in [`web/`](web/) — a React 19 + Vite + TypeScript single-page app
+built with Tailwind CSS v4, shadcn/ui conventions, TanStack Query, Zustand,
+React Hook Form + Zod, Framer Motion and Recharts. See
+[`web/README.md`](web/README.md) for the full architecture, design system and
+accessibility notes.
 
-- **Shelf Audit Inspection Tab**: Interactive shelf canvas with real-time color-coded bounding boxes (Emerald = Automated Match, Crimson = HITL Queue Match), expandable Crop SKU Inspector drawer, and uncompressed similarity metrics.
-- **HITL Review Queue Tab**: 6-column aligned review queue (`Crop Preview`, `Crop ID & Details`, `Top Candidate Prediction`, `Visual Similarity`, `Reject Reason`, `Actions`), featuring a 67-class dropdown and `Save & Upsert` action.
-- **Commercial Catalog Explorer**: Interactive 67-SKU catalog grid with real-time client-side search filtering.
-- **Latency & Architecture Tab**: Real-time breakdown of per-facing stage latency ($130\text{ ms}$ CPU total).
+- **Shelf Audit** — drag-and-drop a shelf photo, then inspect an accessible bounding-box
+  overlay (focusable boxes, zoom, status filters, hover labels) beside a docked facing
+  inspector showing score gauges and the class-unique candidate slate.
+- **Review Queue** — one row per queued facing with a type-ahead SKU picker pre-filled
+  with the model's guess and a single confirm action; rows leave the queue on submit.
+- **SKU Catalogue** — searchable, brand-filterable grid with multi-select and bulk
+  retirement. Search state lives in the URL, so filtered views are shareable.
+- **Add New SKU** — validated few-shot onboarding form with a reference-crop dropzone and
+  a live diagnostics panel (embedding count, catalogue card, shelf validation benchmark).
+- **Performance** — per-stage latency charts plus an equivalent data table and the
+  inference architecture flow.
+- **Continual Learning** — developer-gated workbench for review persistence and
+  fast-loop gallery curation.
+
+Throughout: light and dark themes, a ⌘K command palette, keyboard navigation, loading
+skeletons, empty/error states, toasts and mobile-first responsive layouts.
 
 ---
 
@@ -118,11 +134,24 @@ cd shelf-sku-recognition-2
 python -m pip install -r requirements.txt
 ```
 
-### 2. Launch Local Server
+### 2. Build the frontend
+```bash
+cd web && npm install && npm run build && cd ..
+```
+This emits the production bundle to `server/static/app/`, which the API serves at `/`.
+Skip this step if the build output is already committed.
+
+### 3. Launch Local Server
 ```bash
 python -m uvicorn server.app:app --host 127.0.0.1 --port 8000
 ```
 Open your browser to: **`http://127.0.0.1:8000/`**
+
+### Frontend development
+For hot-reloading UI work, keep the API running on `:8000` and start Vite alongside it:
+```bash
+cd web && npm run dev      # http://localhost:5173, proxies API calls to :8000
+```
 
 ---
 

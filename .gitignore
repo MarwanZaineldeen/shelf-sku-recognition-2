@@ -30,6 +30,14 @@ configs/weights/
 *.onnx
 *.engine
 
+# Frontend toolchain
+# `server/static/app/` (the Vite build output) is intentionally NOT ignored, so
+# the Python service can be run without a Node toolchain present.
+web/node_modules/
+web/dist/
+web/.vite/
+web/tsconfig.*.tsbuildinfo
+
 # Environment & IDE
 .env
 .venv

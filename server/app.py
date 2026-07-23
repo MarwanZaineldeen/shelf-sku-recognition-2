@@ -123,18 +123,44 @@ def get_favicon():
 @app.middleware("http")
 async def add_no_cache_headers(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/static") or request.url.path in ("/", "/app.js", "/style.css"):
+    path = request.url.path
+
+    # Vite emits content-hashed filenames, so those bundles are safe to cache
+    # hard and forever — a new build produces a new URL.
+    if path.startswith("/static/app/assets"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+    if path.startswith("/static") or path in ("/", "/app.js", "/style.css"):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
 
+# Production build of the React frontend (web/ -> server/static/app).
+spa_dir = static_dir / "app"
+spa_index = spa_dir / "index.html"
+
+# Cache the immutable, content-hashed asset bundles; never cache the entry HTML.
+if spa_dir.exists():
+    app.mount("/static/app/assets", StaticFiles(directory=str(spa_dir / "assets")), name="spa_assets")
+
+NO_STORE_HEADERS = {"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"}
+
+
+def _serve_spa():
+    """Serves the React single-page app shell, falling back to the legacy UI."""
+    if spa_index.exists():
+        return FileResponse(spa_index, headers=NO_STORE_HEADERS)
+    legacy_html = static_dir / "index.html"
+    if legacy_html.exists():
+        return FileResponse(legacy_html, headers=NO_STORE_HEADERS)
+    return JSONResponse({"message": "Retail AI API running. UI index.html not found."})
+
+
 @app.get("/")
 def get_dashboard():
-    index_html = static_dir / "index.html"
-    if index_html.exists():
-        return FileResponse(index_html, headers={"Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"})
-    return JSONResponse({"message": "Retail AI API running. UI index.html not found."})
+    return _serve_spa()
 
 @app.get("/style.css")
 def get_style():
@@ -1088,3 +1114,20 @@ def get_class_exemplar(class_id: int):
         <text x="32" y="38" font-family="Outfit, sans-serif" font-size="14" font-weight="bold" fill="#38bdf8" text-anchor="middle">SKU {class_id}</text>
     </svg>"""
     return Response(content=svg_fallback, media_type="image/svg+xml")
+
+
+# ---------------------------------------------------------------------------
+# SPA client-side routes (/audit, /review, /catalog, ...).
+#
+# Registered last so it only runs when no API route, mount, or static file
+# matched. Anything under a known API prefix still 404s as JSON rather than
+# silently returning HTML.
+# ---------------------------------------------------------------------------
+API_PREFIXES = ("/v1", "/api", "/static", "/healthz", "/metrics", "/docs", "/openapi.json", "/redoc")
+
+
+@app.get("/{spa_path:path}", include_in_schema=False)
+def serve_spa_route(spa_path: str):
+    if spa_path.startswith(tuple(prefix.lstrip("/") for prefix in API_PREFIXES)):
+        raise HTTPException(status_code=404, detail="Not found")
+    return _serve_spa()
