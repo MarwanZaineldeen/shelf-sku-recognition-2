@@ -33,17 +33,6 @@ export const onboardingSchema = z
     validationShelfImage: z.custom<File | null>((value) => value === null || value instanceof File),
   })
   .superRefine((values, ctx) => {
-    if (values.source === "folder") {
-      if (!values.folderPath) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["folderPath"],
-          message: "Enter a folder path readable by the server, e.g. data/Nesquik",
-        });
-      }
-      return;
-    }
-
     const count = values.referenceImages.length;
     if (count < MIN_CROPS || count > MAX_CROPS) {
       ctx.addIssue({

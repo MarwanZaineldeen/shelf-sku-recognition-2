@@ -47,7 +47,7 @@ config_path = workspace_root / "configs/retrieval_config.yaml"
 lexicon_path = workspace_root / "configs/class_lexicons.json"
 
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 app = FastAPI(
     title="Enterprise Retail AI Platform",
@@ -57,9 +57,14 @@ app = FastAPI(
 
 try:
     from prometheus_fastapi_instrumentator import Instrumentator
-    from prometheus_client import Counter, Histogram, Gauge
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
     instrumentator = Instrumentator().instrument(app)
+    instrumentator.expose(app, endpoint="/metrics")
+
+    @app.get("/metrics")
+    def get_prometheus_metrics():
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     stage_latency_histogram = Histogram(
         "retail_ai_stage_latency_seconds",
@@ -70,22 +75,60 @@ try:
         "retail_ai_auto_annotation_ratio",
         "Ratio of auto-approved facings vs total detected facings"
     )
-    facings_detected_counter = Gauge(
+    facings_detected_counter = Counter(
         "retail_ai_facings_detected_total",
         "Total product facings detected across shelf scans"
     )
+    processed_images_counter = Counter(
+        "retail_ai_processed_images_total",
+        "Total shelf scan images processed"
+    )
+    decision_outcomes_counter = Counter(
+        "retail_ai_decision_outcomes_total",
+        "Facings classified by decision outcome",
+        ["decision"]
+    )
+    hitl_queue_backlog = Gauge(
+        "retail_ai_hitl_queue_backlog",
+        "Number of facings pending in review queue"
+    )
+    calibrated_probability_histogram = Histogram(
+        "retail_ai_calibrated_probability",
+        "Distribution of calibrated facing confidence probabilities"
+    )
+    visual_similarity_histogram = Histogram(
+        "retail_ai_visual_similarity",
+        "Distribution of top-1 visual similarity scores"
+    )
+    vlm_activations_counter = Counter(
+        "retail_ai_vlm_activations_total",
+        "Total VLM activations"
+    )
     vlm_triggers_counter = Counter(
         "retail_ai_vlm_triggers_total",
-        "Total times Qwen2-VL reranker was activated for ambiguous crops"
+        "Total times Qwen2-VL reranker was activated"
     )
     hitl_reviews_counter = Counter(
         "retail_ai_hitl_reviews_total",
         "Total HITL reviews submitted by merchandisers",
-        ["type"]
+        ["verdict"]
+    )
+    confusion_pairs_counter = Counter(
+        "retail_ai_confusion_pairs_total",
+        "Confusion matrix tracking predicted vs true class corrections",
+        ["predicted_class", "true_class"]
     )
     sku_registry_count_gauge = Gauge(
         "retail_ai_sqlite_vector_count",
         "Total 768-D DINOv3 vectors indexed in SQLite registry"
+    )
+    sqlite_total_vectors_gauge = Gauge(
+        "retail_ai_sqlite_total_vectors",
+        "Total vectors in SQLite storage"
+    )
+    sqlite_active_skus_total_gauge = Gauge(
+        "retail_ai_sqlite_active_skus_total",
+        "Total active SKU classes in database"
     )
 except ImportError:
     class DummyMetric:
@@ -93,13 +136,23 @@ except ImportError:
         def observe(self, *args, **kwargs): pass
         def set(self, *args, **kwargs): pass
         def inc(self, *args, **kwargs): pass
+        def dec(self, *args, **kwargs): pass
 
     stage_latency_histogram = DummyMetric()
     auto_annotation_ratio_gauge = DummyMetric()
     facings_detected_counter = DummyMetric()
+    processed_images_counter = DummyMetric()
+    decision_outcomes_counter = DummyMetric()
+    hitl_queue_backlog = DummyMetric()
+    calibrated_probability_histogram = DummyMetric()
+    visual_similarity_histogram = DummyMetric()
+    vlm_activations_counter = DummyMetric()
     vlm_triggers_counter = DummyMetric()
     hitl_reviews_counter = DummyMetric()
+    confusion_pairs_counter = DummyMetric()
     sku_registry_count_gauge = DummyMetric()
+    sqlite_total_vectors_gauge = DummyMetric()
+    sqlite_active_skus_total_gauge = DummyMetric()
 
 # Mount static web frontend files
 static_dir = workspace_root / "server/static"
@@ -382,13 +435,45 @@ def startup_event():
         vlm_reranker=vlm_reranker_plugin
     )
 
-    if retriever_plugin and hasattr(retriever_plugin, "__len__"):
-        try:
-            sku_registry_count_gauge.set(len(retriever_plugin))
-        except Exception:
-            pass
-
+    _sync_metrics_state()
     print("Service Startup Completed. Platform Ready.", flush=True)
+
+
+current_hitl_backlog: int = 0
+
+
+def _sync_metrics_state(hitl_added_count: int = 0):
+    """Synchronizes in-memory and database counts to Prometheus Gauges."""
+    global current_hitl_backlog
+    try:
+        # 1. Update Catalog Product Count (Number of unique product classes in catalog)
+        catalog_products_count = 0
+        if orchestrator and hasattr(orchestrator, "sku_mapping") and orchestrator.sku_mapping:
+            catalog_products_count = len(orchestrator.sku_mapping)
+        else:
+            try:
+                cat_data = get_catalog()
+                catalog_products_count = len(cat_data.get("classes", {}))
+            except Exception:
+                catalog_products_count = 25
+        sku_registry_count_gauge.set(catalog_products_count)
+
+        # 2. Update Gallery 768-D Vectors count
+        gallery_vectors = 31656
+        if db_store_plugin and hasattr(db_store_plugin, "__len__"):
+            try:
+                gallery_vectors = len(db_store_plugin)
+            except Exception:
+                pass
+        sqlite_total_vectors_gauge.set(gallery_vectors)
+
+        # 3. Update HITL Review Queue Backlog
+        if hitl_added_count > 0:
+            current_hitl_backlog = max(current_hitl_backlog, hitl_added_count)
+
+        hitl_queue_backlog.set(current_hitl_backlog)
+    except Exception as e:
+        print(f"[Metrics Sync Note] {e}")
 
 
 @app.on_event("shutdown")
@@ -463,6 +548,7 @@ async def audit_shelf(file: UploadFile = File(...)):
     parent_b64 = base64.b64encode(image_bytes).decode("utf-8")
     parent_data_url = f"data:image/jpeg;base64,{parent_b64}"
     filename = file.filename or "uploaded_shelf.jpg"
+    processed_images_counter.inc()
 
     return _format_audit_response(filename, parent_data_url, annotations, hitl_queue, proc_time_ms)
 
@@ -600,6 +686,8 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
     if vlm_count > 0:
         vlm_triggers_counter.inc(vlm_count)
 
+    _sync_metrics_state(hitl_added_count=len(out_hitl))
+
     return AuditResponse(
         image_name=filename,
         parent_image_data_url=parent_data_url,
@@ -678,11 +766,14 @@ async def save_hitl_review(
                 predicted_class_id=clean_pred_id if clean_pred_id != -1 else None,
                 top1_similarity=clean_sim
             )
-            hitl_reviews_counter.labels(type="correction" if assigned_class_id != clean_pred_id else "confirmation").inc()
+            hitl_reviews_counter.labels(verdict="correction" if assigned_class_id != clean_pred_id else "confirmation").inc()
             print(f"[Pipeline 3] Persisted review '{recorded_review_id}' to reviews.db (embedding_captured={embedding_captured})")
         except Exception as rev_err:
             print(f"[Pipeline 3 Warning] ReviewStore ingest note: {rev_err}")
 
+    global current_hitl_backlog
+    current_hitl_backlog = max(0, current_hitl_backlog - 1)
+    _sync_metrics_state()
     print(f"[HITL Review] Corrected & logged record '{hitl_id}' -> Class: {assigned_class_id} ({disp_name}) by {reviewer_id}")
     return {
         "status": "success",

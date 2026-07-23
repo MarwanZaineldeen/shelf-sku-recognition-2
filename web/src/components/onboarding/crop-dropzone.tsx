@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ImageUp, X } from "lucide-react";
+import { FolderOpen, ImageUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,14 @@ export const MAX_CROPS = 50;
 interface CropDropzoneProps {
   files: File[];
   onChange: (files: File[]) => void;
+  mode?: "files" | "folder";
   disabled?: boolean;
   "aria-describedby"?: string;
   id?: string;
 }
 
 /**
- * Multi-image picker for few-shot onboarding.
+ * Multi-image & folder picker for few-shot onboarding.
  *
  * Previews use object URLs keyed by file identity and are revoked on unmount,
  * so selecting 50 crops does not leak blobs across submissions.
@@ -24,6 +25,7 @@ interface CropDropzoneProps {
 export function CropDropzone({
   files,
   onChange,
+  mode = "files",
   disabled,
   id,
   ...aria
@@ -56,18 +58,23 @@ export function CropDropzone({
     onChange(merged.slice(0, MAX_CROPS));
   };
 
+  const generatedId = React.useId();
+  const inputId = id ?? generatedId;
   const inRange = files.length >= MIN_CROPS && files.length <= MAX_CROPS;
+  const isFolder = mode === "folder";
+  const Icon = isFolder ? FolderOpen : ImageUp;
 
   return (
     <div className="space-y-3">
       <input
         ref={inputRef}
-        id={id}
+        id={inputId}
         type="file"
         accept="image/*"
         multiple
+        {...(isFolder ? { webkitdirectory: "true", directory: "true" } : {})}
         disabled={disabled}
-        className="sr-only"
+        className="hidden"
         onChange={(event) => {
           addFiles(event.target.files);
           event.target.value = "";
@@ -75,36 +82,37 @@ export function CropDropzone({
         {...aria}
       />
 
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => inputRef.current?.click()}
+      <label
+        htmlFor={inputId}
         onDragOver={(event) => {
           event.preventDefault();
-          setDragging(true);
+          if (!disabled) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          addFiles(event.dataTransfer.files);
+          if (!disabled) addFiles(event.dataTransfer.files);
         }}
         className={cn(
           "flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center",
-          "transition-colors duration-200 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-          "disabled:cursor-not-allowed disabled:opacity-60",
+          "transition-colors duration-200 focus-within:ring-ring focus-within:ring-2 focus-within:outline-none",
           dragging ? "border-primary bg-primary-muted/60" : "border-border hover:border-primary/60 hover:bg-accent/50",
+          disabled && "cursor-not-allowed opacity-60 pointer-events-none",
         )}
       >
-        <span className="bg-primary-muted text-primary flex size-10 items-center justify-center rounded-full">
-          <ImageUp className="size-5" aria-hidden />
+        <span className="bg-primary-muted text-primary flex size-10 items-center justify-center rounded-full pointer-events-none">
+          <Icon className="size-5" aria-hidden />
         </span>
-        <span className="text-sm font-semibold">Drop reference crops here</span>
-        <span className="text-muted-foreground max-w-sm text-xs leading-relaxed">
-          Tightly cropped images of this product only — no shelf context. Between {MIN_CROPS} and{" "}
-          {MAX_CROPS} views covering different angles and lighting.
+        <span className="text-sm font-semibold pointer-events-none">
+          {isFolder ? "Drop folder or click to upload folder" : "Drop files or click to upload files"}
         </span>
-      </button>
+        <span className="text-muted-foreground max-w-sm text-xs leading-relaxed pointer-events-none">
+          {isFolder
+            ? `Select or drop a folder containing between ${MIN_CROPS} and ${MAX_CROPS} reference product crops.`
+            : `Tightly cropped images of this product only — no shelf context. Between ${MIN_CROPS} and ${MAX_CROPS} views covering different angles and lighting.`}
+        </span>
+      </label>
 
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={files.length === 0 ? "secondary" : inRange ? "success" : "warning"}>
@@ -125,7 +133,10 @@ export function CropDropzone({
             variant="ghost"
             size="sm"
             className="ml-auto"
-            onClick={() => onChange([])}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange([]);
+            }}
             disabled={disabled}
           >
             Clear all
@@ -146,7 +157,10 @@ export function CropDropzone({
               />
               <button
                 type="button"
-                onClick={() => onChange(files.filter((_, i) => i !== index))}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(files.filter((_, i) => i !== index));
+                }}
                 aria-label={`Remove ${file.name}`}
                 className={cn(
                   "bg-destructive text-destructive-foreground absolute -top-1.5 -right-1.5 cursor-pointer rounded-full p-0.5",

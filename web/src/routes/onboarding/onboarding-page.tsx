@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Boxes,
@@ -41,8 +42,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/common/states";
 import { CropDropzone } from "@/components/onboarding/crop-dropzone";
-import { useNextClassId, useOnboardSku } from "@/lib/api/queries";
+import { useNextClassId } from "@/lib/api/queries";
 import { formatInteger, formatPercent } from "@/lib/format";
+import { useOnboardingProcessStore } from "@/stores/onboarding-process";
 import {
   deriveDisplayName,
   ONBOARDING_DEFAULTS,
@@ -50,7 +52,7 @@ import {
   PACK_TYPES,
   type OnboardingValues,
 } from "./onboarding-schema";
-import type { OnboardResponse } from "@/types/api";
+import type { OnboardPayload, OnboardResponse } from "@/types/api";
 
 /**
  * Pipeline 2 — few-shot SKU onboarding.
@@ -60,9 +62,13 @@ import type { OnboardResponse } from "@/types/api";
  * embedding count, catalogue record and validation audit without navigating.
  */
 export default function OnboardingPage() {
+  const queryClient = useQueryClient();
   const { data: nextClassId, isLoading: loadingClassId } = useNextClassId();
-  const onboard = useOnboardSku();
-  const [result, setResult] = React.useState<OnboardResponse | null>(null);
+
+  const isProcessing = useOnboardingProcessStore((state) => state.isProcessing);
+  const lastResult = useOnboardingProcessStore((state) => state.lastResult);
+  const runOnboardJob = useOnboardingProcessStore((state) => state.runOnboardJob);
+  const clearResult = useOnboardingProcessStore((state) => state.clearResult);
 
   const form = useForm<OnboardingValues>({
     resolver: zodResolver(onboardingSchema),
@@ -79,42 +85,26 @@ export default function OnboardingPage() {
       return;
     }
 
-    onboard.mutate(
-      {
-        class_id: classId,
-        brand: values.brand,
-        product_name: values.productName,
-        variant: values.variant,
-        size: values.size,
-        pack_type: values.packType,
-        display_name: values.displayName || deriveDisplayName(values),
-        notes: values.notes,
-        ...(values.source === "folder"
-          ? { folderPath: values.folderPath }
-          : { referenceImages: values.referenceImages }),
-        validationShelfImage: values.validationShelfImage,
-      },
-      {
-        onSuccess: (data) => {
-          setResult(data);
-          toast.success(`Class ${data.class_id ?? classId} registered`, {
-            description: `${formatInteger(data.crops_added)} crops embedded into gallery v${data.version}.`,
-          });
-        },
-        onError: (error) => {
-          toast.error("Onboarding failed", {
-            description: error instanceof Error ? error.message : "Unknown error",
-          });
-        },
-      },
-    );
+    const payload: OnboardPayload = {
+      class_id: classId,
+      brand: values.brand,
+      product_name: values.productName,
+      variant: values.variant,
+      size: values.size,
+      pack_type: values.packType,
+      display_name: values.displayName || deriveDisplayName(values),
+      notes: values.notes,
+      referenceImages: values.referenceImages,
+      validationShelfImage: values.validationShelfImage,
+    };
+
+    void runOnboardJob(payload, queryClient);
   });
 
   const reset = () => {
     form.reset(ONBOARDING_DEFAULTS);
-    setResult(null);
-    onboard.reset();
-    toast.info("Form cleared");
+    clearResult();
+    toast.info("Form reset");
   };
 
   return (
@@ -311,7 +301,7 @@ export default function OnboardingPage() {
                             </TabsTrigger>
                             <TabsTrigger value="folder">
                               <FolderOpen aria-hidden />
-                              Server folder
+                              Upload folder
                             </TabsTrigger>
                           </TabsList>
                         </Tabs>
@@ -327,9 +317,9 @@ export default function OnboardingPage() {
                         <FormItem>
                           <FormControl>
                             <CropDropzone
+                              mode="files"
                               files={field.value}
                               onChange={field.onChange}
-                              disabled={onboard.isPending}
                             />
                           </FormControl>
                           <FormMessage />
@@ -339,17 +329,16 @@ export default function OnboardingPage() {
                   ) : (
                     <FormField
                       control={form.control}
-                      name="folderPath"
+                      name="referenceImages"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Server folder path</FormLabel>
                           <FormControl>
-                            <Input placeholder="data/Nesquik" className="font-mono" {...field} />
+                            <CropDropzone
+                              mode="folder"
+                              files={field.value}
+                              onChange={field.onChange}
+                            />
                           </FormControl>
-                          <FormDescription>
-                            Relative to the workspace root. Every image in the folder is treated as
-                            a reference crop for this class.
-                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -388,15 +377,14 @@ export default function OnboardingPage() {
                   type="button"
                   variant="ghost"
                   onClick={reset}
-                  disabled={onboard.isPending}
                   className="text-destructive"
                 >
                   <RotateCcw aria-hidden />
                   Reset form
                 </Button>
-                <Button type="submit" className="flex-1" loading={onboard.isPending}>
+                <Button type="submit" className="flex-1" loading={isProcessing}>
                   <Rocket aria-hidden />
-                  {onboard.isPending ? "Embedding crops…" : "Register SKU & run validation"}
+                  {isProcessing ? "Registering in background…" : "Register SKU & run validation"}
                 </Button>
               </div>
             </Card>
@@ -413,8 +401,8 @@ export default function OnboardingPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {result ? (
-                <OnboardResult result={result} fallbackClassId={classId} />
+              {lastResult ? (
+                <OnboardResult result={lastResult} fallbackClassId={classId} />
               ) : (
                 <EmptyState
                   icon={Microscope}

@@ -3,14 +3,12 @@ import { toast } from "sonner";
 import {
   Binary,
   Brain,
-  CheckCircle2,
   Database,
   Filter,
   Lock,
   PenLine,
   RefreshCw,
   ShieldCheck,
-  XCircle,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -162,7 +160,7 @@ export default function LearningPage() {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <TableSkeleton rows={5} columns={6} />
+            <TableSkeleton rows={5} columns={5} />
           ) : isError ? (
             <div className="p-4">
               <ErrorState
@@ -186,7 +184,6 @@ export default function LearningPage() {
                   <TableHead>Decision</TableHead>
                   <TableHead>Predicted</TableHead>
                   <TableHead>Assigned</TableHead>
-                  <TableHead>Vector</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -246,19 +243,6 @@ const ReviewLogRow = React.memo(function ReviewLogRow({ review }: { review: Rece
       <TableCell className="font-mono text-xs">{classLabel(review.predicted_class_id)}</TableCell>
       <TableCell className="text-success font-mono text-xs font-semibold">
         {classLabel(review.true_class_id)}
-      </TableCell>
-      <TableCell>
-        {review.embedding_captured ? (
-          <Badge variant="success">
-            <CheckCircle2 aria-hidden />
-            768-D saved
-          </Badge>
-        ) : (
-          <Badge variant="secondary">
-            <XCircle aria-hidden />
-            None
-          </Badge>
-        )}
       </TableCell>
     </TableRow>
   );

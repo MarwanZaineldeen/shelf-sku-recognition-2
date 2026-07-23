@@ -22,7 +22,6 @@ import { RouteFallback } from "@/components/common/states";
 import { Brand } from "./brand";
 import { SidebarNav } from "./sidebar-nav";
 import { ThemeToggle } from "./theme-toggle";
-import { SystemStatus } from "./system-status";
 import { CommandMenu } from "./command-menu";
 import { AdminGateDialog } from "./admin-gate";
 import { findNavItem } from "@/config/navigation";
@@ -185,10 +184,6 @@ export function AppShell() {
           >
             <Search aria-hidden />
           </Button>
-
-          <div className="hidden md:block">
-            <SystemStatus />
-          </div>
 
           {!unlocked && (
             <TooltipTip label="Unlock the developer workbench">

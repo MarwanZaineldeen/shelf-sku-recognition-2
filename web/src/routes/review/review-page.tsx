@@ -101,7 +101,7 @@ export default function ReviewPage() {
           )}
         </CardHeader>
 
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {!model ? (
             <EmptyState
               icon={Inbox}
@@ -148,13 +148,13 @@ export default function ReviewPage() {
           ) : (
             // Fixed layout: long SKU titles would otherwise stretch the table
             // past its container and push the confirm action out of reach.
-            <Table className="table-fixed min-w-[60rem]">
+            <Table className="table-fixed min-w-[68rem]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">Crop</TableHead>
                   <TableHead className="w-44">Facing</TableHead>
                   <TableHead>Model prediction</TableHead>
-                  <TableHead className="w-[34rem]">Assign class</TableHead>
+                  <TableHead className="w-[32rem]">Assign class</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -209,8 +209,8 @@ const ReviewRow = React.memo(function ReviewRow({ facing }: { facing: Facing }) 
         </div>
       </TableCell>
 
-      <TableCell className="min-w-[340px]">
-        <div className="flex items-center gap-2">
+      <TableCell className="pr-4">
+        <div className="flex items-center gap-2 min-w-0">
           <label htmlFor={pickerId} className="sr-only">
             Assign a commercial SKU class to crop {facing.cropId}
           </label>
@@ -218,7 +218,7 @@ const ReviewRow = React.memo(function ReviewRow({ facing }: { facing: Facing }) 
             id={pickerId}
             value={assigned}
             onChange={setAssigned}
-            className="w-full min-w-[220px] flex-1"
+            className="w-full min-w-0 flex-1"
           />
           <Button
             size="sm"

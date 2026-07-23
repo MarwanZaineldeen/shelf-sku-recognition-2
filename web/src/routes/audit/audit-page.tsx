@@ -4,10 +4,10 @@ import {
   Boxes,
   CheckCircle2,
   CircleHelp,
+  Clock,
   Download,
   Gauge,
   ScanSearch,
-  Timer,
   TriangleAlert,
   Upload,
 } from "lucide-react";
@@ -136,17 +136,17 @@ export default function AuditPage() {
         <StatCard
           icon={Gauge}
           tone="info"
-          label="Latency per facing"
+          label="Time per Face"
           value={model ? formatDuration(model.perFacingMs) : "—"}
-          hint="Average per facing"
+          hint={model ? `${formatDuration(model.processingTimeMs)} total · CPU` : "CPU optimised"}
           loading={busy}
         />
         <StatCard
-          icon={Timer}
+          icon={Clock}
           tone="info"
-          label="Total processing time"
+          label="Total Processing Time"
           value={model ? formatDuration(model.processingTimeMs) : "—"}
-          hint="Full pipeline duration"
+          hint={model ? "Total pipeline latency" : "Pipeline latency"}
           loading={busy}
         />
       </section>
@@ -154,12 +154,12 @@ export default function AuditPage() {
       {/* -------------------------------- Workspace -------------------------- */}
       <div
         className={cn(
-          "grid min-h-0 gap-4",
-          isDesktop && model ? "xl:grid-cols-2" : "grid-cols-1",
+          "grid min-h-0 items-stretch gap-4",
+          isDesktop && model ? "xl:grid-cols-[minmax(0,1fr)_480px]" : "grid-cols-1",
         )}
       >
-        <Card className="min-h-0 overflow-hidden">
-          <CardHeader className="gap-2">
+        <Card className="flex flex-col h-full min-h-[780px] xl:h-[calc(100dvh-10rem)] overflow-hidden">
+          <CardHeader className="shrink-0 gap-2">
             <div className="min-w-0">
               <CardTitle className="flex items-center gap-2">
                 <ScanSearch className="text-primary size-4 shrink-0" aria-hidden />
@@ -185,7 +185,7 @@ export default function AuditPage() {
             )}
           </CardHeader>
 
-          <CardContent className="flex min-h-0 flex-col p-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col p-0 overflow-hidden">
             {runAudit.isError && !busy ? (
               <div className="p-4">
                 <ErrorState
@@ -207,7 +207,7 @@ export default function AuditPage() {
                 description="The audit completed but the service did not return a rendered shelf image."
               />
             ) : (
-              <div className="flex min-h-[750px] flex-col xl:h-[calc(100dvh-10rem)]">
+              <div className="flex h-full min-h-0 flex-1 flex-col">
                 <ShelfCanvas
                   imageSrc={model.imageDataUrl}
                   imageAlt={`Shelf scan ${model.imageName}`}
@@ -223,11 +223,11 @@ export default function AuditPage() {
 
         {/* Inspector: docked panel on desktop, drawer on smaller screens. */}
         {isDesktop && model && (
-          <Card className="min-h-0 xl:h-[calc(100dvh-10rem)] xl:min-h-[750px]">
-            <CardHeader>
+          <Card className="flex flex-col h-full min-h-[780px] xl:h-[calc(100dvh-10rem)] overflow-hidden">
+            <CardHeader className="shrink-0">
               <CardTitle>Facing inspector</CardTitle>
             </CardHeader>
-            <CardContent className="min-h-0 overflow-y-auto p-0">
+            <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
               <FacingInspector facing={selectedFacing} />
             </CardContent>
           </Card>

@@ -9,7 +9,9 @@ interface ShelfDropzoneProps {
 }
 
 /**
- * First-run surface for the audit workspace: drag-and-drop or click-to-browse.
+ * First-run surface for the audit workspace: drag-and-drop, click-to-browse,
+ * or run the bundled sample shelf. Keyboard users get the same affordance
+ * because the drop area is a real button.
  */
 export function ShelfDropzone({ onFile, busy, busyLabel }: ShelfDropzoneProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);

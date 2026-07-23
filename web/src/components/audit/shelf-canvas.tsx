@@ -55,10 +55,7 @@ export function ShelfCanvas({
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const selectedRef = React.useRef<HTMLButtonElement>(null);
 
-  // Keep the active facing in view when selection changes from the queue/table.
-  React.useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "center", inline: "center" });
-  }, [selectedKey]);
+
 
   const percent = React.useCallback(
     (facing: Facing) => {
@@ -142,12 +139,11 @@ export function ShelfCanvas({
       {/* ------------------------------- Viewport ----------------------------- */}
       <div
         ref={scrollRef}
-        className="bg-muted/30 flex min-h-0 flex-1 flex-col items-center justify-start overflow-auto p-3"
+        className="bg-muted/30 min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3"
         style={{ overscrollBehavior: "contain" }}
       >
         <div
-          className="relative mx-auto w-full"
-          style={{ width: `${zoom * 100}%`, maxWidth: zoom <= 1 ? "100%" : "none" }}
+          className="relative mx-auto w-full max-w-full"
         >
           <img
             src={imageSrc}

@@ -1,7 +1,6 @@
 import {
   Boxes,
   Brain,
-  Gauge,
   PackagePlus,
   ScanSearch,
   UserRoundCheck,
@@ -54,13 +53,6 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Few-shot onboarding from 10–50 reference crops",
     icon: PackagePlus,
     group: "Catalogue",
-  },
-  {
-    to: "/performance",
-    label: "Performance",
-    description: "Per-stage latency and pipeline architecture",
-    icon: Gauge,
-    group: "Operations",
   },
   {
     to: "/learning",
