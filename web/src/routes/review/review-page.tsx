@@ -154,7 +154,7 @@ export default function ReviewPage() {
                   <TableHead className="w-16">Crop</TableHead>
                   <TableHead className="w-44">Facing</TableHead>
                   <TableHead>Model prediction</TableHead>
-                  <TableHead className="w-[21rem]">Assign class</TableHead>
+                  <TableHead className="w-[34rem]">Assign class</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -209,18 +209,16 @@ const ReviewRow = React.memo(function ReviewRow({ facing }: { facing: Facing }) 
         </div>
       </TableCell>
 
-      <TableCell>
+      <TableCell className="min-w-[340px]">
         <div className="flex items-center gap-2">
           <label htmlFor={pickerId} className="sr-only">
             Assign a commercial SKU class to crop {facing.cropId}
           </label>
-          {/* `w-auto` overrides the picker's default `w-full` so the confirm
-              button keeps its place in the flex row. */}
           <SkuPicker
             id={pickerId}
             value={assigned}
             onChange={setAssigned}
-            className="w-auto min-w-0 flex-1"
+            className="w-full min-w-[220px] flex-1"
           />
           <Button
             size="sm"

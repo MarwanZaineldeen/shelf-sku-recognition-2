@@ -6,8 +6,8 @@ import {
   CircleHelp,
   Download,
   Gauge,
-  ImagePlus,
   ScanSearch,
+  Timer,
   TriangleAlert,
   Upload,
 } from "lucide-react";
@@ -99,10 +99,6 @@ export default function AuditPage() {
         actions={
           <>
             <UploadButton onFile={(file) => start(file)} disabled={busy} />
-            <Button variant="outline" onClick={() => start("sample")} disabled={busy}>
-              <ImagePlus aria-hidden />
-              Sample shelf
-            </Button>
             <Button variant="secondary" onClick={handleExport} disabled={!model || busy}>
               <Download aria-hidden />
               Export report
@@ -112,7 +108,7 @@ export default function AuditPage() {
       />
 
       {/* --------------------------------- Metrics --------------------------- */}
-      <section aria-label="Audit summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Audit summary" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           icon={Boxes}
           tone="primary"
@@ -142,7 +138,15 @@ export default function AuditPage() {
           tone="info"
           label="Latency per facing"
           value={model ? formatDuration(model.perFacingMs) : "—"}
-          hint={model ? `${formatDuration(model.processingTimeMs)} total · CPU` : "CPU optimised"}
+          hint="Average per facing"
+          loading={busy}
+        />
+        <StatCard
+          icon={Timer}
+          tone="info"
+          label="Total processing time"
+          value={model ? formatDuration(model.processingTimeMs) : "—"}
+          hint="Full pipeline duration"
           loading={busy}
         />
       </section>
@@ -151,7 +155,7 @@ export default function AuditPage() {
       <div
         className={cn(
           "grid min-h-0 gap-4",
-          isDesktop && model ? "xl:grid-cols-[minmax(0,1fr)_400px]" : "grid-cols-1",
+          isDesktop && model ? "xl:grid-cols-2" : "grid-cols-1",
         )}
       >
         <Card className="min-h-0 overflow-hidden">
@@ -193,7 +197,6 @@ export default function AuditPage() {
             ) : !model || busy ? (
               <ShelfDropzone
                 onFile={(file) => start(file)}
-                onSample={() => start("sample")}
                 busy={busy}
                 busyLabel="Running the recognition pipeline…"
               />
@@ -204,7 +207,7 @@ export default function AuditPage() {
                 description="The audit completed but the service did not return a rendered shelf image."
               />
             ) : (
-              <div className="flex min-h-[420px] flex-col xl:h-[calc(100dvh-22rem)]">
+              <div className="flex min-h-[750px] flex-col xl:h-[calc(100dvh-10rem)]">
                 <ShelfCanvas
                   imageSrc={model.imageDataUrl}
                   imageAlt={`Shelf scan ${model.imageName}`}
@@ -220,7 +223,7 @@ export default function AuditPage() {
 
         {/* Inspector: docked panel on desktop, drawer on smaller screens. */}
         {isDesktop && model && (
-          <Card className="min-h-0 xl:h-[calc(100dvh-22rem)] xl:min-h-[560px]">
+          <Card className="min-h-0 xl:h-[calc(100dvh-10rem)] xl:min-h-[750px]">
             <CardHeader>
               <CardTitle>Facing inspector</CardTitle>
             </CardHeader>

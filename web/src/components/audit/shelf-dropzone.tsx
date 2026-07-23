@@ -1,21 +1,17 @@
 import * as React from "react";
-import { CloudUpload, ImagePlus, Loader2 } from "lucide-react";
+import { CloudUpload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 interface ShelfDropzoneProps {
   onFile: (file: File) => void;
-  onSample: () => void;
   busy?: boolean;
   busyLabel?: string;
 }
 
 /**
- * First-run surface for the audit workspace: drag-and-drop, click-to-browse,
- * or run the bundled sample shelf. Keyboard users get the same affordance
- * because the drop area is a real button.
+ * First-run surface for the audit workspace: drag-and-drop or click-to-browse.
  */
-export function ShelfDropzone({ onFile, onSample, busy, busyLabel }: ShelfDropzoneProps) {
+export function ShelfDropzone({ onFile, busy, busyLabel }: ShelfDropzoneProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = React.useState(false);
 
@@ -85,14 +81,6 @@ export function ShelfDropzone({ onFile, onSample, busy, busyLabel }: ShelfDropzo
         </span>
         <span className="text-muted-foreground text-2xs">JPG · PNG · up to ~4000 px wide</span>
       </button>
-
-      <div className="mt-4 flex flex-col items-center gap-2">
-        <p className="text-muted-foreground text-xs">Nothing to hand?</p>
-        <Button variant="outline" size="sm" onClick={onSample}>
-          <ImagePlus aria-hidden />
-          Run the sample shelf
-        </Button>
-      </div>
     </div>
   );
 }

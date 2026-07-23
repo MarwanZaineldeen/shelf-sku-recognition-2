@@ -58,11 +58,11 @@ export function FacingInspector({ facing }: FacingInspectorProps) {
   return (
     <div className="flex flex-col">
       {/* -------------------------------- Summary --------------------------- */}
-      <div className="flex gap-3 p-4">
+      <div className="flex flex-col sm:flex-row gap-4 p-5">
         <CropThumb
           src={facing.cropDataUrl}
           alt={`Cropped facing ${facing.cropId}`}
-          className="size-24 shrink-0"
+          className="size-32 sm:size-36 shrink-0 rounded-lg shadow-sm"
         />
         <div className="min-w-0 flex-1 space-y-2">
           <div>

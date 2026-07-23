@@ -142,11 +142,11 @@ export function ShelfCanvas({
       {/* ------------------------------- Viewport ----------------------------- */}
       <div
         ref={scrollRef}
-        className="bg-muted/30 min-h-0 flex-1 overflow-auto p-3"
+        className="bg-muted/30 flex min-h-0 flex-1 flex-col items-center justify-start overflow-auto p-3"
         style={{ overscrollBehavior: "contain" }}
       >
         <div
-          className="relative mx-auto"
+          className="relative mx-auto w-full"
           style={{ width: `${zoom * 100}%`, maxWidth: zoom <= 1 ? "100%" : "none" }}
         >
           <img

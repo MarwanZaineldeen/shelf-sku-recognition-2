@@ -12,7 +12,6 @@ const AuditPage = lazy(() => import("@/routes/audit/audit-page"));
 const ReviewPage = lazy(() => import("@/routes/review/review-page"));
 const CatalogPage = lazy(() => import("@/routes/catalog/catalog-page"));
 const OnboardingPage = lazy(() => import("@/routes/onboarding/onboarding-page"));
-const PerformancePage = lazy(() => import("@/routes/performance/performance-page"));
 const LearningPage = lazy(() => import("@/routes/learning/learning-page"));
 
 export const router = createBrowserRouter([
@@ -26,7 +25,6 @@ export const router = createBrowserRouter([
       { path: "review", element: <ReviewPage /> },
       { path: "catalog", element: <CatalogPage /> },
       { path: "onboarding", element: <OnboardingPage /> },
-      { path: "performance", element: <PerformancePage /> },
       {
         path: "learning",
         element: (
