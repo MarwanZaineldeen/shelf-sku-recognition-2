@@ -36,7 +36,7 @@ from ml.active_learning.ingest import ReviewContextCache, record_review
 # workspace_root above, so the continual learning loop stays portable across
 # machines. (The remaining workspace_root paths are a separate known issue.)
 repo_root = Path(__file__).resolve().parents[1]
-review_db_path = repo_root / "data/processed/active_learning/reviews.db"
+review_db_path = Path(os.environ.get("REVIEWS_DB_PATH", repo_root / "data/processed/active_learning/reviews.db"))
 
 from server.schemas import (
     AuditResponse, AnnotationOut, BBoxOut, HITLRecordOut,
@@ -360,14 +360,14 @@ def startup_event():
     try:
         from ml.embeddings.dinov3 import DINOv3Extractor
         embedder_plugin = DINOv3Extractor(device="cpu")
-        db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_dinov3.db")
+        db_path = os.environ.get("REGISTRY_DB_PATH", str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_dinov3.db"))
         dimension = 768
         retriever_plugin = NumpyCosineIndex(dimension=768)
         print("  Using DINOv3 ViT-B/16 SOTA 768-D Visual Backbone!", flush=True)
     except Exception as e:
         print(f"  DINOv3 offline model not available ({e}). Falling back to DINOv2 (384-D)...", flush=True)
         embedder_plugin = DINOv2Extractor(model_name="facebook/dinov2-small", device="cpu")
-        db_path = str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_onboarding.db")
+        db_path = os.environ.get("ONBOARDING_DB_PATH", str(workspace_root / "data/processed/crops/gt_clean/retail_sku_registry_onboarding.db"))
         dimension = 384
         retriever_plugin = NumpyCosineIndex(dimension=384)
 
@@ -397,7 +397,7 @@ def startup_event():
         pass
 
     print("  Initializing YOLOv8 Detector (SKU110K Class-Agnostic)...", flush=True)
-    yolo_weights = workspace_root / "runs/detect/yolo8l_sku110k/yolov8l-sku110k.pt"
+    yolo_weights = Path(os.environ.get("YOLO_WEIGHTS_PATH", workspace_root / "runs/detect/yolo8l_sku110k/yolov8l-sku110k.pt"))
     if not yolo_weights.exists():
         alt_weights = Path("D:/ITI/Graduation Project/Project GitHub/yolov8l-sku110k.pt")
         if alt_weights.exists():
