@@ -6,42 +6,42 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  DOCKER_USER: mazen1393
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & Push Backend Image
-        uses: docker/build-push-action@v5
+      - name: Build Backend
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME || 'mazen1393' }}/retail-ai-backend:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME || 'mazen1393' }}/retail-ai-backend:latest
+            ${{ env.DOCKER_USER }}/retail-ai-backend:${{ github.sha }}
+            ${{ env.DOCKER_USER }}/retail-ai-backend:latest
 
-      - name: Build & Push Nginx Frontend Image
-        uses: docker/build-push-action@v5
+      - name: Build Nginx
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./web/Dockerfile
+          file: web/Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME || 'mazen1393' }}/retail-ai-nginx:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME || 'mazen1393' }}/retail-ai-nginx:latest
+            ${{ env.DOCKER_USER }}/retail-ai-nginx:${{ github.sha }}
+            ${{ env.DOCKER_USER }}/retail-ai-nginx:latest
