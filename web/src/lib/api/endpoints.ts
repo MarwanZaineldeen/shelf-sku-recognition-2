@@ -40,7 +40,7 @@ export function fetchCatalog(signal?: AbortSignal) {
 export function deleteSkus(classIds: number[]) {
   return request<DeleteSkusResponse>("/v1/catalog/delete", {
     method: "POST",
-    body: { class_ids: classIds },
+    body: { class_ids: classIds, confirmation: "DELETE" },
   });
 }
 
@@ -77,7 +77,10 @@ export function fetchActiveLearningStatus(signal?: AbortSignal) {
 }
 
 export function runCuration() {
-  return request<CurationResponse>("/v1/active-learning/curate", { method: "POST" });
+  return request<CurationResponse>("/v1/active-learning/curate", {
+    method: "POST",
+    body: { apply: true, confirmation: "CURATE" },
+  });
 }
 
 /* -------------------------------- Onboarding ------------------------------- */

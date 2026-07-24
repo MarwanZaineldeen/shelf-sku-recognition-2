@@ -33,6 +33,8 @@ export interface Candidate {
   vlm_selected?: boolean | null;
   s_fused?: number | null;
   exemplar_url?: string | null;
+  inference_mode?: string | null;
+  vlm_verified?: boolean | null;
 }
 
 export interface Annotation {
@@ -48,6 +50,9 @@ export interface Annotation {
   commercial_sku?: CommercialSku | null;
   /** Present on annotations produced by newer pipeline builds. */
   top5_candidates?: Candidate[] | null;
+  predicted_class_id?: number | null;
+  top1_similarity?: number | null;
+  inference_mode?: string | null;
 }
 
 export interface HitlRecord {
@@ -65,6 +70,7 @@ export interface HitlRecord {
   top5_candidates?: Candidate[] | null;
   predicted_class_id?: number | null;
   top1_similarity?: number | null;
+  inference_mode?: string | null;
 }
 
 export interface AuditResponse {
@@ -73,6 +79,8 @@ export interface AuditResponse {
   processing_time_ms: number;
   annotations: Annotation[];
   hitl_queue: HitlRecord[];
+  image_width?: number | null;
+  image_height?: number | null;
 }
 
 export interface HealthResponse {
@@ -81,7 +89,7 @@ export interface HealthResponse {
   db_version: number;
 }
 
-/** A row of `configs/sku_mapping_v2.json`. */
+/** A row of the canonical `configs/sku_mapping.json`. */
 export interface CatalogClass {
   raw_class_id?: string;
   training_class_id?: number;
@@ -114,6 +122,9 @@ export interface DeleteSkusResponse {
   deleted_class_ids: number[];
   deleted_vectors_count: number;
   next_class_id: number;
+  id_remap: Record<string, number>;
+  catalog: CatalogResponse;
+  backup_path: string;
 }
 
 export interface HitlReviewResponse {
@@ -148,8 +159,16 @@ export interface ActiveLearningStatus {
 
 export interface CurationResponse {
   status: string;
+  applied: boolean;
+  preview: boolean;
+  promoted_count: number;
+  skipped_count: number;
+  skipped_reasons: Record<string, number>;
   pruned_count: number;
   new_gallery_size: number;
+  reviews_consumed: number;
+  remaining_backlog: number;
+  backup_path: string | null;
 }
 
 export interface OnboardValidationAudit {

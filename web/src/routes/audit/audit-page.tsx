@@ -21,7 +21,7 @@ import { EmptyState, ErrorState } from "@/components/common/states";
 import { ShelfCanvas } from "@/components/audit/shelf-canvas";
 import { ShelfDropzone } from "@/components/audit/shelf-dropzone";
 import { FacingInspector } from "@/components/audit/facing-inspector";
-import { buildAuditModel, buildAuditReport, FACING_STATUS_META, type FacingStatus } from "@/lib/audit";
+import { buildAuditModel, buildYoloAnnotations, FACING_STATUS_META, type FacingStatus } from "@/lib/audit";
 import { downloadTextFile, formatDuration, formatInteger, formatPercent, slugifyFilename } from "@/lib/format";
 import { useCurrentAudit, useRunAudit } from "@/lib/api/queries";
 import { useAuditUiStore, type FacingFilter } from "@/stores/audit-ui";
@@ -84,8 +84,17 @@ export default function AuditPage() {
 
   const handleExport = () => {
     if (!model) return;
-    downloadTextFile(`audit_report_${slugifyFilename(model.imageName)}.txt`, buildAuditReport(model));
-    toast.success("Audit report exported");
+    try {
+      const baseName = slugifyFilename(model.imageName.replace(/\.[^.]+$/, ""));
+      downloadTextFile(`${baseName}.txt`, `${buildYoloAnnotations(model)}\n`);
+      toast.success("Verified YOLO annotations exported", {
+        description: "Includes auto-approved and HITL-reviewed known crops; Unknown crops are excluded.",
+      });
+    } catch (error) {
+      toast.error("Annotation export failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   };
 
   const busy = runAudit.isPending;
@@ -101,7 +110,7 @@ export default function AuditPage() {
             <UploadButton onFile={(file) => start(file)} disabled={busy} />
             <Button variant="secondary" onClick={handleExport} disabled={!model || busy}>
               <Download aria-hidden />
-              Export report
+              Export YOLO annotations
             </Button>
           </>
         }

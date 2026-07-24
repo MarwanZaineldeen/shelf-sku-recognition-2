@@ -47,7 +47,7 @@ The inter-class similarity score $S_{A, B}$ measures the raw visual feature over
 
 ### Task 1: Duplicate Class Remapping & Merging
 - **Assigned To**: Teammate A
-- **Target Files**: `configs/sku_mapping_v2.json`, `configs/sku_mapping.json`
+- **Target File**: `configs/sku_mapping.json`
 - **Objective**: Merge duplicate class entries (e.g. Class 24 & Class 35 for Lipton Green Tea Pure 50s; Class 4 & Class 26 for Lipton Yellow 200s) into single canonical class IDs.
 
 ### Task 2: Sub-Region Localized Patch Token Pooling

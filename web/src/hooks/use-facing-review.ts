@@ -76,6 +76,9 @@ export function useFacingReview() {
           vlm_reason: facing.vlmReason,
           commercial_sku: sku,
           top5_candidates: facing.candidates,
+          predicted_class_id: facing.predictedClassId,
+          top1_similarity: facing.topSimilarity,
+          inference_mode: facing.inferenceMode,
         };
 
         return {

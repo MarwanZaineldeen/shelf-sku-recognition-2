@@ -285,6 +285,7 @@ export default function CatalogPage() {
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => !open && setPendingDelete(null)}
         destructive
+        confirmationText="DELETE"
         loading={deleteSkus.isPending}
         title={`Delete ${pluralize(pendingDelete?.length ?? 0, "SKU class", "SKU classes")}?`}
         confirmLabel="Delete permanently"

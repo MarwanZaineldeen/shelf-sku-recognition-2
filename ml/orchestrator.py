@@ -49,23 +49,21 @@ class AuditPipelineOrchestrator:
         # Resolved relative to the repository so the catalog is found regardless
         # of the working directory the server was launched from.
         _repo_root = Path(__file__).resolve().parents[1]
-        for path in [
-            _repo_root / "configs/sku_mapping_v2.json",
-            _repo_root / "configs/sku_mapping.json",
-        ]:
-            if Path(path).exists():
-                with open(path, "r", encoding="utf-8") as f:
-                    raw_data = json.load(f).get("classes", {})
-                    for key, info in raw_data.items():
-                        t_id = info.get("training_class_id")
-                        if t_id is not None:
-                            self.sku_mapping[int(t_id)] = info
-                        else:
-                            try:
-                                self.sku_mapping[int(key)] = info
-                            except ValueError:
-                                pass
-                break
+        path = Path(sku_mapping_path)
+        if not path.is_absolute():
+            path = _repo_root / path
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                raw_data = json.load(f).get("classes", {})
+                for key, info in raw_data.items():
+                    t_id = info.get("training_class_id")
+                    if t_id is not None:
+                        self.sku_mapping[int(t_id)] = info
+                    else:
+                        try:
+                            self.sku_mapping[int(key)] = info
+                        except ValueError:
+                            pass
 
     def _get_commercial_info(self, class_id: int) -> Optional[CommercialSKUDTO]:
         if class_id not in self.sku_mapping:
@@ -156,7 +154,9 @@ class AuditPipelineOrchestrator:
                     predicted_class_id=-1,
                     confidence_probability=0.0,
                     automated=False,
-                    reject_reason="NO_MATCHING_CANDIDATES"
+                    reject_reason="NO_MATCHING_CANDIDATES",
+                    visual_similarity=0.0,
+                    inference_mode="no_candidates",
                 )
                 hitl_queue.append(pred)
                 continue
@@ -219,7 +219,10 @@ class AuditPipelineOrchestrator:
                     crop_data_url=crop_data_url,
                     top5_candidates=top5_cand_info,
                     commercial_info=None,
-                    embedding=embedding_dto.vector
+                    embedding=embedding_dto.vector,
+                    visual_similarity=top_visual_sim,
+                    inference_mode="similarity_threshold",
+                    vlm_verified=False,
                 )
                 annotations.append(pred)
                 continue
@@ -232,6 +235,8 @@ class AuditPipelineOrchestrator:
 
             vlm_verified_name = None
             final_class_id = best_match.remapped_class_id
+            inference_mode = "visual_fast_path" if is_region_a_fast_path else "vlm_unavailable"
+            was_vlm_verified = False
 
             # Execute VLM for Region A (if tight variant tie sim_diff < 0.10), Region B, or Region C
             if not is_region_a_fast_path:
@@ -245,6 +250,11 @@ class AuditPipelineOrchestrator:
                             vlm_class_id = vlm_pick.get("class_id", best_match.remapped_class_id)
                             vlm_verified_name = vlm_pick.get("display_name")
                             fused_s = vlm_pick.get("s_fused", best_match.similarity)
+                            inference_mode = str(vlm_pick.get("inference_mode", "qwen2_vl"))
+                            was_vlm_verified = bool(
+                                vlm_pick.get("vlm_verified")
+                                or vlm_pick.get("qwen2_vl_verified")
+                            )
 
                             if fused_s < T_LOW or vlm_class_id == -1:
                                 final_class_id = -1
@@ -258,19 +268,28 @@ class AuditPipelineOrchestrator:
                             top5_cand_info = reranked  # propagate VLM-reranked order to UI
                     except Exception as vlm_err:
                         print(f"[VLM Rerank] Error: {vlm_err}")
+                        inference_mode = "vlm_error"
 
             # Enforce 4-Region Final Automation Rules:
             if is_region_a_fast_path:
                 automated = True
                 reject_reason = None
-            elif not is_region_c and final_class_id != -1:
-                # Region B: Mid-high similarity (0.78 <= S_vis < 0.84) -> Auto-Approve with VLM verification
+            elif not is_region_c and final_class_id != -1 and was_vlm_verified:
+                # Region B is automated only after a real, valid VLM response.
+                # Heuristic fallback remains visible but is routed to review.
                 automated = True
                 reject_reason = None
             else:
                 # Region C: Low-mid similarity (0.62 <= S_vis < 0.78) -> Pre-analyzed by VLM, routed to HITL Queue
                 automated = False
-                reject_reason = "LOW_CONFIDENCE_HITL" if final_class_id != -1 else "OUT_OF_CATALOG_OR_NOISE"
+                if final_class_id == -1:
+                    reject_reason = "OUT_OF_CATALOG_OR_NOISE"
+                elif inference_mode == "heuristic_fallback":
+                    reject_reason = "VLM_UNAVAILABLE_HEURISTIC_UNVERIFIED"
+                elif inference_mode in {"vlm_error", "vlm_unavailable"}:
+                    reject_reason = "VLM_UNAVAILABLE"
+                else:
+                    reject_reason = "LOW_CONFIDENCE_HITL"
 
             prediction = PredictionDTO(
                 crop_id=f"crop_{crop_idx+1}",
@@ -284,7 +303,10 @@ class AuditPipelineOrchestrator:
                 crop_data_url=crop_data_url,
                 top5_candidates=top5_cand_info,
                 commercial_info=self._get_commercial_info(final_class_id) if final_class_id != -1 else None,
-                embedding=embedding_dto.vector
+                embedding=embedding_dto.vector,
+                visual_similarity=top_visual_sim,
+                inference_mode=inference_mode,
+                vlm_verified=was_vlm_verified,
             )
 
             if automated:

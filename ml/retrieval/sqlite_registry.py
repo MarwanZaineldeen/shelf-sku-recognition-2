@@ -119,13 +119,11 @@ class SQLiteGalleryStore(BaseGalleryStore):
         return -1
 
     def delete_classes(self, class_ids: List[int]) -> int:
-        """Completely purges all vector crop records belonging to specified class IDs.
+        """Purges records by authoritative runtime class ID only.
 
-        Args:
-            class_ids: List of integer class IDs to delete.
-
-        Returns:
-            Number of rows deleted.
+        ``old_class_id`` is immutable dataset provenance. It is intentionally
+        not a deletion predicate because it can equal a different SKU's
+        current runtime ID.
         """
         if not self.conn or not class_ids:
             return 0
@@ -134,12 +132,34 @@ class SQLiteGalleryStore(BaseGalleryStore):
         deleted_count = 0
         with self.conn:
             cursor = self.conn.execute(
-                f"DELETE FROM sku_crops WHERE remapped_class_id IN ({placeholders}) OR old_class_id IN ({placeholders})",
-                class_ids + class_ids
+                f"DELETE FROM sku_crops WHERE remapped_class_id IN ({placeholders})",
+                class_ids,
             )
             deleted_count = cursor.rowcount
 
         return deleted_count
+
+    def reindex_classes(self, id_remap: Dict[int, int]) -> int:
+        """Atomically updates runtime class IDs without touching raw IDs."""
+        if not self.conn or not id_remap:
+            return 0
+        changed = {int(old): int(new) for old, new in id_remap.items() if int(old) != int(new)}
+        if not changed:
+            return 0
+        cases = " ".join("WHEN ? THEN ?" for _ in changed)
+        params: List[int] = []
+        for old_id, new_id in sorted(changed.items()):
+            params.extend([old_id, new_id])
+        old_ids = sorted(changed)
+        placeholders = ",".join("?" for _ in old_ids)
+        with self.conn:
+            cursor = self.conn.execute(
+                f"UPDATE sku_crops SET remapped_class_id = CASE remapped_class_id "
+                f"{cases} ELSE remapped_class_id END "
+                f"WHERE remapped_class_id IN ({placeholders})",
+                params + old_ids,
+            )
+        return max(0, int(cursor.rowcount))
 
     def shutdown(self) -> None:
         """Safely closes connections."""
@@ -162,9 +182,6 @@ class SQLiteGalleryStore(BaseGalleryStore):
         """
         if not self.conn:
             raise RuntimeError("Database connection not initialized.")
-
-        self.conn.execute("PRAGMA synchronous = OFF")
-        self.conn.execute("PRAGMA journal_mode = MEMORY")
 
         with self.conn:
             cursor = self.conn.execute("INSERT INTO gallery_metadata (active) VALUES (1)")

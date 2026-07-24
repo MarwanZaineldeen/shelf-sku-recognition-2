@@ -37,7 +37,7 @@ def unit_vector(seed: int, dim: int = DIM) -> np.ndarray:
 def make_prediction(crop_id: str, class_id: int = 12, with_embedding: bool = True) -> PredictionDTO:
     return PredictionDTO(
         crop_id=crop_id,
-        bbox=BBoxDTO(x1=0, y1=0, x2=10, y2=10, confidence=0.91),
+        bbox=BBoxDTO(x1=0, y1=0, x2=10, y2=10, confidence=0.99),
         predicted_class_id=class_id,
         confidence_probability=0.78,
         automated=False,
@@ -135,6 +135,7 @@ class TestReviewContextCache(unittest.TestCase):
         self.assertIsNotNone(context.embedding)
         self.assertEqual(len(context.candidates), 2)
         self.assertEqual(context.predicted_class_id, 12)
+        self.assertEqual(context.top1_similarity, 0.91)
 
     def test_put_predictions_skips_entries_without_crop_id(self) -> None:
         prediction = make_prediction("crop_1")
@@ -184,6 +185,28 @@ class TestRecordReview(RecordReviewTestCase):
         self.assertIsNotNone(record.embedding)
         self.assertEqual(record.embedding_dim, DIM)
         self.assertEqual(len(self.store.fetch_candidates(review_id)), 2)
+
+    def test_all_768_audit_embedding_values_survive_review_persistence(self) -> None:
+        prediction = make_prediction("crop_768")
+        expected = unit_vector(768, dim=768).tolist()
+        prediction.embedding = expected
+        prediction.visual_similarity = 0.87
+        self.cache.put_predictions("shelf.jpg", [prediction])
+
+        review_id = record_review(
+            store=self.store,
+            source_image="shelf.jpg",
+            crop_id="crop_768",
+            assigned_class_id=12,
+            reviewer_id="qa",
+            context=self.cache.get("shelf.jpg", "crop_768"),
+        )
+        record = self.store.fetch_review(review_id)
+
+        self.assertEqual(record.embedding_dim, 768)
+        self.assertEqual(len(record.embedding), 768)
+        np.testing.assert_allclose(record.embedding, expected, rtol=0, atol=1e-7)
+        self.assertAlmostEqual(record.top1_similarity, 0.87)
 
     def test_approval_recorded_when_reviewer_agrees(self) -> None:
         self.cache.put_predictions("shelf.jpg", [make_prediction("crop_1", class_id=12)])

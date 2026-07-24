@@ -78,6 +78,27 @@ class NumpyCosineIndex(VectorIndex, BaseRetriever):
             self.gallery_vectors = np.vstack([self.gallery_vectors, vectors])
             self.metadata.extend(metadata)
 
+    def remove_classes(self, class_ids: List[int]) -> int:
+        """Evicts all vectors for runtime class IDs from the live index."""
+        targets = {int(class_id) for class_id in class_ids}
+        if not targets or self.gallery_vectors is None:
+            return 0
+        keep = np.array(
+            [int(meta.get("remapped_class_id", -1)) not in targets for meta in self.metadata],
+            dtype=bool,
+        )
+        removed = int(len(self.metadata) - int(keep.sum()))
+        self.gallery_vectors = self.gallery_vectors[keep] if keep.any() else None
+        self.metadata = [meta for meta, should_keep in zip(self.metadata, keep) if should_keep]
+        return removed
+
+    def reindex_classes(self, id_remap: Dict[int, int]) -> None:
+        """Updates runtime IDs in index metadata after catalog compaction."""
+        for meta in self.metadata:
+            old_id = int(meta.get("remapped_class_id", -1))
+            if old_id in id_remap:
+                meta["remapped_class_id"] = int(id_remap[old_id])
+
     def search(self, query_vectors: np.ndarray, top_k: int = 5) -> Tuple[np.ndarray, np.ndarray]:
         """Searches the index for query nearest neighbors using Cosine Similarity.
 

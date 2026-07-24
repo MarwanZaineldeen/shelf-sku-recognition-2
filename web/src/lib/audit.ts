@@ -40,6 +40,7 @@ export interface Facing {
   /** Model's original top-1, preserved so a review records what was corrected. */
   predictedClassId: number;
   topSimilarity: number;
+  inferenceMode: string | null;
 }
 
 export const FACING_STATUS_META: Record<
@@ -122,6 +123,7 @@ function toFacing(
     rejectReason: record.reject_reason ?? null,
     predictedClassId: record.predicted_class_id ?? classId,
     topSimilarity: record.top1_similarity ?? topSimilarityOf(candidates, record.confidence ?? 0),
+    inferenceMode: record.inference_mode ?? null,
   };
 }
 
@@ -140,6 +142,8 @@ export interface AuditModel {
   reviewRate: number;
   perFacingMs: number;
   meanConfidence: number;
+  imageWidth: number;
+  imageHeight: number;
 }
 
 /** Flatten an API response into the model every audit view renders from. */
@@ -175,7 +179,28 @@ export function buildAuditModel(audit: AuditResponse | null | undefined): AuditM
     reviewRate: total ? (reviewCount + unknownCount) / total : 0,
     perFacingMs: total ? (audit.processing_time_ms ?? 0) / total : 0,
     meanConfidence: total ? confidenceSum / total : 0,
+    imageWidth: audit.image_width ?? 0,
+    imageHeight: audit.image_height ?? 0,
   };
+}
+
+/** Final YOLO labels: automated + HITL-reviewed known classes, never pending/Unknown. */
+export function buildYoloAnnotations(model: AuditModel): string {
+  if (model.imageWidth <= 0 || model.imageHeight <= 0) {
+    throw new Error("The audit response does not include valid source-image dimensions.");
+  }
+  return model.facings
+    .filter((facing) => !facing.queued && facing.classId !== UNKNOWN_CLASS_ID)
+    .map((facing) => {
+      const { x1, y1, x2, y2 } = facing.bbox;
+      const centerX = ((x1 + x2) / 2) / model.imageWidth;
+      const centerY = ((y1 + y2) / 2) / model.imageHeight;
+      const width = (x2 - x1) / model.imageWidth;
+      const height = (y2 - y1) / model.imageHeight;
+      const clamp = (value: number) => Math.max(0, Math.min(1, value)).toFixed(6);
+      return `${facing.classId} ${clamp(centerX)} ${clamp(centerY)} ${clamp(width)} ${clamp(height)}`;
+    })
+    .join("\n");
 }
 
 /** Plain-text audit report, kept byte-compatible in spirit with the old export. */

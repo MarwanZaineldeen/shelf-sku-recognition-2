@@ -59,7 +59,8 @@ class SKUOnboarder:
             source_image: Optional tag for the source shelf or dataset.
             detector: Optional YOLO detector override.
             use_yolo_crop: If True, crops tightly using YOLO box detector.
-            augment: If True, generates 3x low-quality shelf variants per crop.
+            augment: Deprecated and ignored. Synthetic onboarding vectors are
+                disabled; each genuine crop contributes one vector.
 
         Returns:
             Dict containing onboarding summary execution stats.
@@ -167,8 +168,11 @@ class SKUOnboarder:
 
             crops_added += 1
 
-            # 2. Generate 3x Realistic Low-Quality Shelf Augmentations if requested
-            if augment:
+            # Synthetic augmentation is intentionally disabled. Each genuine
+            # crop contributes exactly one gallery vector. The guarded legacy
+            # block remains only to preserve older source compatibility while
+            # callers migrate away from the deprecated argument.
+            if False:
                 try:
                     from PIL import Image, ImageEnhance, ImageFilter
                     pil_raw = Image.fromarray(cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB))

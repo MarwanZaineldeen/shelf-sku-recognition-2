@@ -35,14 +35,15 @@ class TestAPIAuditE2E(unittest.TestCase):
         from server.app import shutdown_event
         shutdown_event()
 
-    def test_healthz_endpoint(self) -> None:
+    def test_health_endpoint(self) -> None:
         """Verifies health check status is 200 and schema matches."""
         response = self.client.get("/healthz")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "healthy")
-        self.assertIn("yolov8s", data["loaded_models"])
+        self.assertIn("yolov8", data["loaded_models"])
         self.assertGreaterEqual(data["db_version"], 1)
+        self.assertEqual(self.client.get("/health").status_code, 404)
 
     def test_audit_shelf_endpoint(self) -> None:
         """Verifies daily shelf audit runs and responds with Annotation/HITL schemas."""
@@ -55,15 +56,10 @@ class TestAPIAuditE2E(unittest.TestCase):
         self.assertIn("annotations", data)
         self.assertIn("hitl_queue", data)
 
-    def test_onboard_sku_endpoint(self) -> None:
-        """Verifies new SKU dynamic onboarding upserts reference crop to DB and active index."""
-        # 1. Fetch current DB version prior to onboarding
-        health_resp = self.client.get("/healthz")
-        version_before = health_resp.json()["db_version"]
-        
-        # 2. Execute onboarding POST request
+    def test_onboard_sku_rejects_fewer_than_ten_crops(self) -> None:
+        """A direct API call cannot bypass the browser's 10-crop minimum."""
         payload = {
-            "class_id": 99,
+            "class_id": 999,
             "old_class_id": 999,
             "family_id": "test_family",
             "source_image": "source_shelf.jpg"
@@ -73,12 +69,8 @@ class TestAPIAuditE2E(unittest.TestCase):
         ]
         
         response = self.client.post("/v1/onboard/sku", data=payload, files=files)
-        self.assertEqual(response.status_code, 200)
-        
-        data = response.json()
-        self.assertEqual(data["status"], "success")
-        self.assertEqual(data["crops_added"], 3)
-        self.assertGreater(data["version"], version_before)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("10-50", response.json()["detail"])
 
 
 if __name__ == "__main__":

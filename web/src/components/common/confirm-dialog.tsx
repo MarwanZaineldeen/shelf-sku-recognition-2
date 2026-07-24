@@ -1,6 +1,7 @@
 import * as React from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogBody,
@@ -21,6 +22,7 @@ interface ConfirmDialogProps {
   destructive?: boolean;
   loading?: boolean;
   onConfirm: () => void;
+  confirmationText?: string;
 }
 
 /** Blocking confirmation for irreversible actions (deletes, purges). */
@@ -34,7 +36,14 @@ export function ConfirmDialog({
   destructive = false,
   loading = false,
   onConfirm,
+  confirmationText,
 }: ConfirmDialogProps) {
+  const [typed, setTyped] = React.useState("");
+  React.useEffect(() => {
+    if (!open) setTyped("");
+  }, [open]);
+  const confirmed = !confirmationText || typed === confirmationText;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -46,6 +55,19 @@ export function ConfirmDialog({
         </DialogHeader>
         <DialogBody>
           <DialogDescription className="text-sm leading-relaxed">{description}</DialogDescription>
+          {confirmationText && (
+            <div className="mt-4 space-y-2">
+              <label htmlFor="destructive-confirmation" className="text-sm font-medium">
+                Type <span className="font-mono">{confirmationText}</span> to continue
+              </label>
+              <Input
+                id="destructive-confirmation"
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          )}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
@@ -55,6 +77,7 @@ export function ConfirmDialog({
             variant={destructive ? "destructive" : "default"}
             onClick={onConfirm}
             loading={loading}
+            disabled={loading || !confirmed}
           >
             {confirmLabel}
           </Button>

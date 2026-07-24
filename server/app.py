@@ -1,6 +1,13 @@
 import os
+import hmac
+import shutil
+import sqlite3
+import threading
+import time
+import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+import cv2
 import numpy as np
 
 # Repository root, resolved from this file so the server runs on any machine.
@@ -14,8 +21,9 @@ os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 import json
 import yaml
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, status
+from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException, status
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from ml.base import BBoxDTO, EmbeddingDTO, CropDTO
 from ml.detection.yolo_detector import YOLOv8Detector
@@ -40,7 +48,14 @@ review_db_path = Path(os.environ.get("REVIEWS_DB_PATH", repo_root / "data/proces
 
 from server.schemas import (
     AuditResponse, AnnotationOut, BBoxOut, HITLRecordOut,
-    HealthResponse, OnboardResponse, CommercialSKUOut, CandidateOut
+    HealthResponse, OnboardResponse, CommercialSKUOut, CandidateOut, CurationRequest
+)
+from server.catalog_service import (
+    catalog_by_training_id,
+    choose_onboarding_raw_id,
+    delete_and_reindex_catalog,
+    load_catalog_documents,
+    write_catalog_documents,
 )
 
 config_path = workspace_root / "configs/retrieval_config.yaml"
@@ -231,90 +246,75 @@ def get_app_js():
 
 @app.get("/api/catalog")
 def get_catalog():
-    for mp in ["configs/sku_mapping_v2.json", "c:/Users/asusd/Desktop/sku_mapping_v2.json", "configs/sku_mapping.json"]:
-        p = workspace_root / mp if not mp.startswith("c:") else Path(mp)
-        if p.exists():
-            with open(p, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                raw_classes = data.get("classes", {})
-                # Key catalog cleanly by training_class_id
-                by_training_id = {}
-                for k, info in raw_classes.items():
-                    t_id = info.get("training_class_id")
-                    if t_id is not None:
-                        by_training_id[str(t_id)] = info
-                    else:
-                        by_training_id[str(k)] = info
-                return {"classes": by_training_id}
+    catalog_path = workspace_root / "configs" / "sku_mapping.json"
+    if catalog_path.exists():
+        with open(catalog_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            raw_classes = data.get("classes", {})
+            # Key catalog cleanly by training_class_id
+            by_training_id = {}
+            for k, info in raw_classes.items():
+                t_id = info.get("training_class_id")
+                if t_id is not None:
+                    by_training_id[str(t_id)] = info
+                else:
+                    by_training_id[str(k)] = info
+            return {"classes": by_training_id}
     return {"classes": {}}
 
 from server.schemas import DeleteSKUsRequest
 
+catalog_mutation_lock = threading.RLock()
+
+
+def _require_admin_token(authorization: Optional[str]) -> None:
+    expected = os.environ.get("ADMIN_API_TOKEN", "").strip()
+    if not expected:
+        return
+    prefix = "Bearer "
+    supplied = (
+        authorization[len(prefix):].strip()
+        if authorization and authorization.startswith(prefix)
+        else ""
+    )
+    if not supplied or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="A valid administrator bearer token is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
 @app.post("/v1/catalog/delete")
 @app.delete("/v1/catalog/skus")
-def delete_catalog_skus(payload: DeleteSKUsRequest):
-    """Deletes single or multiple SKUs across SQLite database, catalog JSONs, in-memory index, and preview thumbnails."""
-    import shutil
-    target_ids = payload.class_ids
-
-    if not target_ids:
-        raise HTTPException(status_code=400, detail="Must provide non-empty 'class_ids' list")
-
-    target_str_ids = [str(c) for c in target_ids]
-    deleted_vectors = 0
-
-    # 1. Purge from active SQLite database
-    if db_store_plugin and hasattr(db_store_plugin, "delete_classes"):
-        deleted_vectors = db_store_plugin.delete_classes(target_ids)
-
-    # 2. Evict from active in-memory search index
-    if retriever_plugin and hasattr(retriever_plugin, "remove_classes"):
-        retriever_plugin.remove_classes(target_ids)
-
-    # 3. Remove entries from mapping JSONs
-    catalog_json_paths = [
-        workspace_root / "configs" / "sku_mapping_v2.json",
-        workspace_root / "configs" / "sku_mapping.json"
-    ]
-    for cat_path in catalog_json_paths:
-        if cat_path.exists():
-            try:
-                with open(cat_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                classes_dict = data.get("classes", {})
-                for key in list(classes_dict.keys()):
-                    val = classes_dict[key]
-                    t_id = val.get("training_class_id")
-                    if key in target_str_ids or int(key) in target_ids or t_id in target_ids:
-                        del classes_dict[key]
-                with open(cat_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2, ensure_ascii=False)
-            except Exception as e:
-                pass
-
-    # 4. Evict from in-memory orchestrator mapping
-    if orchestrator and hasattr(orchestrator, "sku_mapping"):
-        for cid in target_ids:
-            orchestrator.sku_mapping.pop(cid, None)
-            orchestrator.sku_mapping.pop(str(cid), None)
-
-    # 5. Remove exemplar thumbnail directories
-    preview_base = workspace_root / "data" / "processed" / "Sku Preview"
-    for cid in target_ids:
-        p_dir = preview_base / f"class_{cid}"
-        if p_dir.exists():
-            try:
-                shutil.rmtree(p_dir)
-            except Exception:
-                pass
-
-    new_next_id = compute_next_class_id()
-    return {
-        "status": "success",
-        "deleted_class_ids": target_ids,
-        "deleted_vectors_count": deleted_vectors,
-        "next_class_id": new_next_id
-    }
+def delete_catalog_skus(
+    payload: DeleteSKUsRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Deletes and compacts the catalog as one coordinated state transition."""
+    _require_admin_token(authorization)
+    if payload.confirmation != "DELETE":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Catalog deletion requires confirmation='DELETE'.",
+        )
+    try:
+        with catalog_mutation_lock:
+            result = delete_and_reindex_catalog(
+                workspace_root=workspace_root,
+                store=db_store_plugin,
+                retriever=retriever_plugin,
+                orchestrator=orchestrator,
+                class_ids=payload.class_ids,
+            )
+        _sync_metrics_state()
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Catalog deletion was rolled back: {exc}",
+        ) from exc
 
 # Global orchestrator and registry storage references
 orchestrator: Any = None
@@ -411,9 +411,9 @@ def startup_event():
         "imgsz": 640
     })
 
-    print(f"  Initializing Cosine Search Index (768-D)...", flush=True)
+    print(f"  Initializing Cosine Search Index ({dimension}-D)...", flush=True)
     retriever_plugin.initialize({
-        "dimension": 768,
+        "dimension": dimension,
         "db_path": db_path
     })
 
@@ -491,12 +491,14 @@ def shutdown_event():
         db_store_plugin.shutdown()
     if review_store_plugin:
         review_store_plugin.shutdown()
+    if vlm_reranker_plugin and hasattr(vlm_reranker_plugin, "shutdown"):
+        vlm_reranker_plugin.shutdown()
     review_context_cache.clear()
     print("Shutdown Completed.", flush=True)
 
 
 @app.get("/healthz", response_model=HealthResponse)
-def healthz():
+def health():
     """Exposes basic metrics and diagnostics of the service components."""
     if not orchestrator:
         raise HTTPException(
@@ -514,9 +516,22 @@ def healthz():
         )
 
     version = db_store_plugin.get_current_version()
+    embedding_model = (
+        "dinov3-vitb16"
+        if getattr(embedder_plugin, "dimension", 768) == 768
+        else "dinov2-small"
+    )
     return HealthResponse(
         status="healthy",
-        loaded_models=["yolov8s", "dinov2-small", "easyocr"],
+        loaded_models=[
+            "yolov8",
+            embedding_model,
+            (
+                "qwen2-vl"
+                if getattr(vlm_reranker_plugin, "model", None) is not None
+                else "qwen2-vl-unavailable"
+            ),
+        ],
         db_version=version
     )
 
@@ -550,7 +565,18 @@ async def audit_shelf(file: UploadFile = File(...)):
     filename = file.filename or "uploaded_shelf.jpg"
     processed_images_counter.inc()
 
-    return _format_audit_response(filename, parent_data_url, annotations, hitl_queue, proc_time_ms)
+    image_shape = cv2.imdecode(
+        np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR
+    ).shape
+    return _format_audit_response(
+        filename,
+        parent_data_url,
+        annotations,
+        hitl_queue,
+        proc_time_ms,
+        image_width=int(image_shape[1]),
+        image_height=int(image_shape[0]),
+    )
 
 
 @app.get("/v1/audit/sample", response_model=AuditResponse)
@@ -581,10 +607,29 @@ def audit_sample():
     parent_b64 = base64.b64encode(img_bytes).decode("utf-8")
     parent_data_url = f"data:image/jpeg;base64,{parent_b64}"
 
-    return _format_audit_response(sample_path.name, parent_data_url, annotations, hitl_queue, proc_time_ms)
+    image_shape = cv2.imdecode(
+        np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR
+    ).shape
+    return _format_audit_response(
+        sample_path.name,
+        parent_data_url,
+        annotations,
+        hitl_queue,
+        proc_time_ms,
+        image_width=int(image_shape[1]),
+        image_height=int(image_shape[0]),
+    )
 
 
-def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue, proc_time_ms: float = 0.0) -> AuditResponse:
+def _format_audit_response(
+    filename: str,
+    parent_data_url: str,
+    annotations,
+    hitl_queue,
+    proc_time_ms: float = 0.0,
+    image_width: Optional[int] = None,
+    image_height: Optional[int] = None,
+) -> AuditResponse:
     # Pipeline 3: cache every prediction's audit-time context — keyed by
     # (image name, crop id) — so a later /v1/hitl/review can recover the crop's
     # 768-D query embedding without a second backbone pass. Without this the
@@ -622,12 +667,14 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                     similarity=float(c.get("similarity", 0.0)),
                     vlm_selected=bool(c.get("qwen2_vl_verified", False)),
                     s_fused=float(c["s_fused"]) if "s_fused" in c else None,
-                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}")
+                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}"),
+                    inference_mode=c.get("inference_mode"),
+                    vlm_verified=bool(c.get("vlm_verified") or c.get("qwen2_vl_verified")),
                 )
                 for c in pred.top5_candidates
             ]
 
-        is_vlm = True if (pred.ocr_text and "VLM" in pred.ocr_text) else False
+        is_vlm = bool(getattr(pred, "vlm_verified", False))
 
         out_annotations.append(
             AnnotationOut(
@@ -640,7 +687,11 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                 ocr_text=pred.ocr_text,
                 vlm_verified=is_vlm,
                 vlm_reason=pred.ocr_text if is_vlm else None,
-                commercial_sku=comm_out
+                commercial_sku=comm_out,
+                top5_candidates=top5_out,
+                predicted_class_id=pred.predicted_class_id,
+                top1_similarity=pred.visual_similarity,
+                inference_mode=pred.inference_mode,
             )
         )
 
@@ -667,12 +718,14 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                     similarity=float(c.get("similarity", 0.0)),
                     vlm_selected=bool(c.get("qwen2_vl_verified", False)),
                     s_fused=float(c["s_fused"]) if "s_fused" in c else None,
-                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}")
+                    exemplar_url=c.get("exemplar_url", f"/v1/exemplars/{c['class_id']}"),
+                    inference_mode=c.get("inference_mode"),
+                    vlm_verified=bool(c.get("vlm_verified") or c.get("qwen2_vl_verified")),
                 )
                 for c in pred.top5_candidates
             ]
 
-        is_vlm = True if (pred.ocr_text and "VLM" in pred.ocr_text) else False
+        is_vlm = bool(getattr(pred, "vlm_verified", False))
 
         out_hitl.append(
             HITLRecordOut(
@@ -687,7 +740,10 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
                 vlm_verified=is_vlm,
                 vlm_reason=pred.ocr_text if is_vlm else None,
                 commercial_sku=comm_out,
-                top5_candidates=top5_out
+                top5_candidates=top5_out,
+                predicted_class_id=pred.predicted_class_id,
+                top1_similarity=pred.visual_similarity,
+                inference_mode=pred.inference_mode,
             )
         )
 
@@ -707,7 +763,9 @@ def _format_audit_response(filename: str, parent_data_url: str, annotations, hit
         parent_image_data_url=parent_data_url,
         processing_time_ms=proc_time_ms,
         annotations=out_annotations,
-        hitl_queue=out_hitl
+        hitl_queue=out_hitl,
+        image_width=image_width,
+        image_height=image_height,
     )
 
 
@@ -746,10 +804,42 @@ async def save_hitl_review(
     except (ValueError, TypeError):
         clean_sim = 0.0
 
+    if review_store_plugin is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Review persistence is unavailable; the verdict was not accepted.",
+        )
+
     disp_name = "Class Unknown"
     if orchestrator and assigned_class_id != -1 and hasattr(orchestrator, "sku_mapping"):
         disp_name = orchestrator.sku_mapping.get(assigned_class_id, {}).get("display_name", f"Class {assigned_class_id}")
     
+    # Pipeline 3: Record review in ReviewStore (reviews.db) and capture audit-time 768-D embedding
+    recorded_review_id = None
+    embedding_captured = False
+    try:
+        cached_context = review_context_cache.get(parent_image_name, crop_id)
+        if cached_context and cached_context.embedding is not None:
+            embedding_captured = True
+
+        recorded_review_id = record_review(
+            store=review_store_plugin,
+            source_image=parent_image_name,
+            crop_id=crop_id,
+            assigned_class_id=assigned_class_id,
+            reviewer_id=reviewer_id,
+            context=cached_context,
+            predicted_class_id=clean_pred_id if clean_pred_id != -1 else None,
+            top1_similarity=clean_sim
+        )
+        hitl_reviews_counter.labels(verdict="correction" if assigned_class_id != clean_pred_id else "confirmation").inc()
+        print(f"[Pipeline 3] Persisted review '{recorded_review_id}' to reviews.db (embedding_captured={embedding_captured})")
+    except Exception as rev_err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Review persistence failed; the verdict was not accepted: {rev_err}",
+        ) from rev_err
+
     if hitl_store_plugin:
         try:
             hitl_store_plugin.correct_task(
@@ -759,31 +849,7 @@ async def save_hitl_review(
                 verifier_notes=f"Reviewed by {reviewer_id}"
             )
         except Exception as e:
-            print(f"[HITL Store] Log note: {e}")
-
-    # Pipeline 3: Record review in ReviewStore (reviews.db) and capture audit-time 768-D embedding
-    recorded_review_id = None
-    embedding_captured = False
-    if review_store_plugin:
-        try:
-            cached_context = review_context_cache.get(parent_image_name, crop_id)
-            if cached_context and cached_context.embedding is not None:
-                embedding_captured = True
-            
-            recorded_review_id = record_review(
-                store=review_store_plugin,
-                source_image=parent_image_name,
-                crop_id=crop_id,
-                assigned_class_id=assigned_class_id,
-                reviewer_id=reviewer_id,
-                context=cached_context,
-                predicted_class_id=clean_pred_id if clean_pred_id != -1 else None,
-                top1_similarity=clean_sim
-            )
-            hitl_reviews_counter.labels(verdict="correction" if assigned_class_id != clean_pred_id else "confirmation").inc()
-            print(f"[Pipeline 3] Persisted review '{recorded_review_id}' to reviews.db (embedding_captured={embedding_captured})")
-        except Exception as rev_err:
-            print(f"[Pipeline 3 Warning] ReviewStore ingest note: {rev_err}")
+            print(f"[HITL Store] Secondary log note: {e}")
 
     global current_hitl_backlog
     current_hitl_backlog = max(0, current_hitl_backlog - 1)
@@ -852,54 +918,139 @@ async def get_active_learning_status():
     }
 
 
+def _backup_open_database(connection: sqlite3.Connection, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    backup_connection = sqlite3.connect(str(destination))
+    try:
+        connection.backup(backup_connection)
+    finally:
+        backup_connection.close()
+
+
+def _restore_curation_backups(gallery_backup: Path, review_backup: Path) -> None:
+    if db_store_plugin is not None:
+        gallery_path = Path(db_store_plugin.db_path)
+        db_store_plugin.shutdown()
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(f"{gallery_path}{suffix}")
+            if sidecar.exists():
+                sidecar.unlink()
+        shutil.copy2(gallery_backup, gallery_path)
+        db_store_plugin.initialize({"db_path": str(gallery_path)})
+    if review_store_plugin is not None:
+        review_store_plugin.shutdown()
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(f"{review_db_path}{suffix}")
+            if sidecar.exists():
+                sidecar.unlink()
+        shutil.copy2(review_backup, review_db_path)
+        review_store_plugin.initialize({"db_path": str(review_db_path)})
+    if retriever_plugin is not None and db_store_plugin is not None:
+        from ml.active_learning.memory import GalleryMemoryUpdater
+        GalleryMemoryUpdater(gallery_store=db_store_plugin).rebuild_index(retriever_plugin)
+
+
 @app.post("/v1/active-learning/curate")
-async def run_active_learning_curation():
-    """Executes Pipeline 3 fast-loop gallery vector curation and near-duplicate pruning."""
-    pruned_count = 9651
-    new_gallery_size = 22007
-
-    if review_store_plugin and db_store_plugin:
-        try:
-            from ml.active_learning.memory import GalleryMemoryUpdater
-            updater = GalleryMemoryUpdater(
-                review_store=review_store_plugin,
-                gallery_db_path=str(review_db_path.parents[1] / "crops/gt_clean/retail_sku_registry_dinov3.db")
+def run_active_learning_curation(
+    payload: CurationRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Runs a truthful promotion/curation preview or an authenticated apply."""
+    if not review_store_plugin or not db_store_plugin:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gallery or review persistence is unavailable.",
+        )
+    if payload.apply:
+        _require_admin_token(authorization)
+        if payload.confirmation != "CURATE":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Applied curation requires confirmation='CURATE'.",
             )
-            # Run curation preview dry-run
-            summary = updater.curate_session(class_cap=500, apply=False)
-            pruned_count = summary.get("pruned", 9651)
-            new_gallery_size = summary.get("kept", 22007)
-        except Exception as cur_err:
-            print(f"[Pipeline 3 Curation Note]: {cur_err}")
 
+    from ml.active_learning.loop import run_session
+    from ml.active_learning.memory import GalleryMemoryUpdater
+
+    gallery_path = Path(db_store_plugin.db_path)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    backup_dir = (
+        workspace_root / "data" / "processed" / "backups" / "active_learning"
+        / f"{stamp}-{uuid.uuid4().hex[:8]}"
+    )
+    gallery_backup = backup_dir / gallery_path.name
+    review_backup = backup_dir / review_db_path.name
+
+    with catalog_mutation_lock:
+        if payload.apply:
+            _backup_open_database(db_store_plugin.conn, gallery_backup)
+            _backup_open_database(review_store_plugin.conn, review_backup)
+        try:
+            summary = run_session(
+                review_db=str(review_db_path),
+                gallery_db=str(gallery_path),
+                apply=payload.apply,
+            )
+            rebuilt = GalleryMemoryUpdater(
+                gallery_store=db_store_plugin
+            ).rebuild_index(retriever_plugin)
+        except Exception as exc:
+            if payload.apply and gallery_backup.exists() and review_backup.exists():
+                try:
+                    _restore_curation_backups(gallery_backup, review_backup)
+                except Exception as restore_exc:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=(
+                            f"Curation failed ({exc}) and automatic restore failed "
+                            f"({restore_exc}). Backups: {backup_dir}"
+                        ),
+                    ) from restore_exc
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Curation failed and was restored from backup: {exc}"
+                    if payload.apply
+                    else f"Curation preview failed without applying changes: {exc}"
+                ),
+            ) from exc
+
+    _sync_metrics_state()
     return {
         "status": "success",
-        "pruned_count": pruned_count,
-        "new_gallery_size": new_gallery_size
+        "applied": bool(summary["applied"]),
+        "preview": not bool(summary["applied"]),
+        "promoted_count": int(summary["n_promoted"]),
+        "skipped_count": int(summary["n_skipped"]),
+        "skipped_reasons": summary["skipped_reasons"],
+        "pruned_count": int(summary["n_pruned"]),
+        "new_gallery_size": int(rebuilt),
+        "reviews_consumed": int(summary["n_reviews_consumed"]),
+        "remaining_backlog": int(summary["remaining_backlog"]),
+        "backup_path": str(backup_dir) if payload.apply else None,
     }
 
 
 def compute_next_class_id() -> int:
-    """Calculates the next available auto-incremented class ID across database, mapping JSONs, and orchestrator."""
+    """Calculates the next available class ID across the database, catalog, and orchestrator."""
     max_id = -1
     if db_store_plugin and hasattr(db_store_plugin, "get_max_class_id"):
         max_id = max(max_id, db_store_plugin.get_max_class_id())
 
-    for cfg_name in ["configs/sku_mapping_v2.json", "configs/sku_mapping.json"]:
-        cfg_path = workspace_root / cfg_name
-        if cfg_path.exists():
-            try:
-                with open(cfg_path, "r", encoding="utf-8") as f:
-                    cat_data = json.load(f)
-                classes = cat_data.get("classes", {})
-                for k, v in classes.items():
-                    c_id = v.get("training_class_id", v.get("raw_class_id", k))
-                    try:
-                        max_id = max(max_id, int(c_id))
-                    except (ValueError, TypeError):
-                        pass
-            except Exception:
-                pass
+    cfg_path = workspace_root / "configs" / "sku_mapping.json"
+    if cfg_path.exists():
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cat_data = json.load(f)
+            classes = cat_data.get("classes", {})
+            for k, v in classes.items():
+                c_id = v.get("training_class_id", v.get("raw_class_id", k))
+                try:
+                    max_id = max(max_id, int(c_id))
+                except (ValueError, TypeError):
+                    pass
+        except Exception:
+            pass
 
     if orchestrator and hasattr(orchestrator, "sku_mapping"):
         for k in orchestrator.sku_mapping.keys():
@@ -919,6 +1070,292 @@ def get_next_class_id():
 
 @app.post("/v1/onboard/sku", response_model=OnboardResponse)
 async def onboard_sku(
+    class_id: int | None = Form(None),
+    brand: str | None = Form(None),
+    product_name: str | None = Form(None),
+    family_id: str | None = Form(None),
+    old_class_id: int | None = Form(None),
+    variant: str | None = Form(""),
+    size: str | None = Form(""),
+    pack_count: str | None = Form(""),
+    pack_type: str | None = Form("box"),
+    display_name: str | None = Form(None),
+    notes: str | None = Form(""),
+    source_image: str | None = Form("web_ui_onboard"),
+    folder_path: str | None = Form(None),
+    reference_images: list[UploadFile] | None = File(None),
+    validation_shelf_image: UploadFile | None = File(None)
+):
+    """Atomically onboards 10-50 genuine reference crops for one new SKU."""
+    if not db_store_plugin or not embedder_plugin or not retriever_plugin:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Storage engine not fully initialized.",
+        )
+
+    documents = load_catalog_documents(workspace_root)
+    authoritative_path = workspace_root / "configs" / "sku_mapping.json"
+    existing_runtime_ids = {
+        int(info.get("training_class_id", key))
+        for key, info in documents[authoritative_path]["classes"].items()
+    }
+    if class_id is None or class_id < 0:
+        class_id = compute_next_class_id()
+    if class_id in existing_runtime_ids:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Runtime class {class_id} already exists; refresh the next class ID.",
+        )
+
+    image_payloads: List[tuple[str, bytes]] = []
+    if folder_path and folder_path.strip():
+        target = Path(folder_path.strip())
+        if not target.is_dir():
+            raise HTTPException(status_code=400, detail=f"Crop folder does not exist: {target}")
+        extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+        paths = sorted(path for path in target.iterdir() if path.suffix.lower() in extensions)
+        image_payloads = [(path.name, path.read_bytes()) for path in paths]
+    else:
+        for upload in reference_images or []:
+            if upload.filename:
+                image_payloads.append((upload.filename, await upload.read()))
+
+    supplied_count = len(image_payloads)
+    if supplied_count < 10 or supplied_count > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Onboarding requires 10-50 reference product crops "
+                f"(received {supplied_count})."
+            ),
+        )
+
+    effective_brand = (
+        brand.strip() if brand and brand.strip()
+        else family_id.strip() if family_id and family_id.strip()
+        else "New Brand"
+    )
+    effective_product_name = (
+        product_name.strip()
+        if product_name and product_name.strip()
+        else f"Product (Class {class_id})"
+    )
+    effective_display_name = (
+        display_name.strip()
+        if display_name and display_name.strip()
+        else f"{effective_brand} {effective_product_name} {variant or ''}".strip()
+    )
+    source_tag = source_image or "web_ui_onboard"
+    requested_raw_id = old_class_id if old_class_id is not None else class_id
+    authoritative_raw_id = choose_onboarding_raw_id(documents, requested_raw_id)
+
+    crops: List[CropDTO] = []
+    crop_names: List[str] = []
+    boxes: List[BBoxDTO] = []
+    for filename, image_bytes in image_payloads:
+        if not image_bytes:
+            continue
+        decoded = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if decoded is None:
+            continue
+        height, width = decoded.shape[:2]
+        box = BBoxDTO(
+            x1=0.0, y1=0.0, x2=float(width), y2=float(height), confidence=1.0
+        )
+        crops.append(CropDTO(
+            crop_id=f"onboard_crop_{filename}",
+            image_bytes=image_bytes,
+            bbox=box,
+            blur_score=0.0,
+            aspect_ratio=float(width) / float(max(1, height)),
+        ))
+        crop_names.append(filename)
+        boxes.append(box)
+
+    if len(crops) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Only {len(crops)} of {supplied_count} files were valid images; "
+                "at least 10 valid crops are required."
+            ),
+        )
+
+    try:
+        if hasattr(embedder_plugin, "extract_batch_dto"):
+            embeddings = await run_in_threadpool(embedder_plugin.extract_batch_dto, crops)
+        else:
+            embeddings = await run_in_threadpool(
+                lambda: [embedder_plugin.extract_dto(crop) for crop in crops]
+            )
+        if len(embeddings) != len(crops):
+            raise RuntimeError(
+                f"Embedder returned {len(embeddings)} vectors for {len(crops)} crops."
+            )
+        expected_dimension = int(
+            getattr(retriever_plugin, "dimension", embeddings[0].dimension)
+        )
+        for embedding in embeddings:
+            if len(embedding.vector) != expected_dimension:
+                raise ValueError(
+                    f"Embedding dimension mismatch: active index expects "
+                    f"{expected_dimension}, got {len(embedding.vector)}."
+                )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Embedding preparation failed: {exc}"
+        ) from exc
+
+    crops_added = len(crops)
+    sku_meta_record = {
+        "raw_class_id": str(authoritative_raw_id),
+        "training_class_id": class_id,
+        "project_sku_id": f"TM_RAW_{authoritative_raw_id:03d}",
+        "brand": effective_brand,
+        "product_name": effective_product_name,
+        "variant": variant or "",
+        "size": size or "",
+        "pack_count": pack_count or f"{crops_added} crops",
+        "pack_type": pack_type or "box",
+        "display_name": effective_display_name,
+        "status": "verified",
+        "identity_confidence": "A",
+        "instance_count": crops_added,
+        "source_image_count": crops_added,
+        "evidence": "Onboarded via Web UI (Pipeline 2)",
+        "notes": notes or "Dynamic Onboarding",
+    }
+    prospective_documents: Dict[Path, Dict[str, Any]] = {}
+    for path, document in documents.items():
+        prospective = json.loads(json.dumps(document))
+        prospective["classes"][str(authoritative_raw_id)] = dict(sku_meta_record)
+        prospective_documents[path] = prospective
+
+    references = []
+    metadata = []
+    vectors = []
+    for filename, box, embedding in zip(crop_names, boxes, embeddings):
+        references.append((
+            class_id,
+            authoritative_raw_id,
+            filename,
+            effective_brand,
+            source_tag,
+            [box.x1, box.y1, box.x2, box.y2],
+            embedding.vector,
+        ))
+        vectors.append(embedding.vector)
+        metadata.append({
+            "crop_path": filename,
+            "remapped_class_id": class_id,
+            "old_class_id": authoritative_raw_id,
+            "family_id": effective_brand,
+            "source_image_name": source_tag,
+            "bbox": [box.x1, box.y1, box.x2, box.y2],
+        })
+
+    protected_files = [
+        *documents.keys(),
+        workspace_root / "configs" / "class_id_mapping.json",
+        workspace_root / "configs" / "class_id_mapping.csv",
+    ]
+    original_files = {
+        path: path.read_bytes() for path in protected_files if path.exists()
+    }
+    baseline_version = db_store_plugin.get_current_version()
+    preview_dir = (
+        workspace_root / "data" / "processed" / "Sku Preview" / f"class_{class_id:02d}"
+    )
+    preview_created = False
+
+    try:
+        with catalog_mutation_lock:
+            new_version = db_store_plugin.save_references_bulk(references)
+            write_catalog_documents(workspace_root, prospective_documents)
+            retriever_plugin.add(np.asarray(vectors, dtype=np.float32), metadata)
+
+            if preview_dir.exists():
+                raise FileExistsError(f"Preview directory already exists: {preview_dir}")
+            preview_dir.mkdir(parents=True)
+            preview_created = True
+            preview_temp = preview_dir / ".crop_0.jpg.tmp"
+            preview_temp.write_bytes(crops[0].image_bytes)
+            os.replace(preview_temp, preview_dir / "crop_0.jpg")
+
+            if orchestrator and hasattr(orchestrator, "sku_mapping"):
+                orchestrator.sku_mapping[class_id] = dict(sku_meta_record)
+    except Exception as exc:
+        try:
+            db_store_plugin.rollback_version(baseline_version)
+            for path in protected_files:
+                if path in original_files:
+                    path.write_bytes(original_files[path])
+                elif path.exists():
+                    path.unlink()
+            if preview_created and preview_dir.exists():
+                shutil.rmtree(preview_dir)
+            from ml.active_learning.memory import GalleryMemoryUpdater
+            GalleryMemoryUpdater(gallery_store=db_store_plugin).rebuild_index(
+                retriever_plugin
+            )
+            if orchestrator and hasattr(orchestrator, "sku_mapping"):
+                orchestrator.sku_mapping = {
+                    int(cid): dict(info)
+                    for cid, info in catalog_by_training_id(
+                        documents[authoritative_path]
+                    ).items()
+                }
+        except Exception as rollback_exc:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Onboarding failed ({exc}) and rollback also failed "
+                    f"({rollback_exc}). Manual recovery is required."
+                ),
+            ) from rollback_exc
+        raise HTTPException(
+            status_code=500,
+            detail=f"Onboarding failed and all changes were rolled back: {exc}",
+        ) from exc
+
+    validation_audit_res = None
+    if validation_shelf_image and validation_shelf_image.filename:
+        try:
+            val_img_bytes = await validation_shelf_image.read()
+            from ml.onboarding.onboarder import SKUOnboarder
+            validation_audit_res = SKUOnboarder(
+                embedder=embedder_plugin,
+                store=db_store_plugin,
+                retriever=retriever_plugin,
+            ).validate_sku_on_shelf(
+                shelf_img_bytes=val_img_bytes,
+                class_id=class_id,
+                detector=detector_plugin,
+            )
+        except Exception as exc:
+            validation_audit_res = {
+                "facings_detected": 0,
+                "mean_similarity": 0.0,
+                "pass_validation": False,
+                "recommendation": f"SKU was onboarded, but optional validation failed: {exc}",
+            }
+
+    _sync_metrics_state()
+    return OnboardResponse(
+        status="success",
+        class_id=class_id,
+        version=new_version,
+        crops_added=crops_added,
+        message=(
+            f"Successfully onboarded {crops_added} genuine crop references for "
+            f"class {class_id}. Catalog, database, preview and live index are synchronized."
+        ),
+        metadata=sku_meta_record,
+        validation_audit=validation_audit_res,
+    )
+
+
+async def _legacy_onboard_sku(
     class_id: int | None = Form(None),
     brand: str | None = Form(None),
     product_name: str | None = Form(None),
@@ -984,7 +1421,7 @@ async def onboard_sku(
                 source_image=source_img_tag,
                 detector=detector_plugin,
                 use_yolo_crop=False,
-                augment=True
+                augment=False
             )
             crops_added += res.get("crops_added", 0)
             new_version = res.get("db_version", new_version)
@@ -1050,7 +1487,7 @@ async def onboard_sku(
                 pil_raw = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
                 sh, sw = img.shape[:2]
 
-                for aug_idx in range(2):
+                for aug_idx in range(0):
                     aug = pil_raw.copy()
                     b_factor = 0.75 if aug_idx == 0 else 1.25
                     c_factor = 0.85 if aug_idx == 0 else 1.15
@@ -1121,7 +1558,7 @@ async def onboard_sku(
         except Exception:
             pass
 
-    # 3. Save full metadata schema into sku_mapping.json & sku_mapping_v2.json
+    # 3. Save full metadata schema into the canonical sku_mapping.json catalog
     sku_meta_record = {
         "raw_class_id": str(class_id),
         "training_class_id": class_id,
@@ -1141,18 +1578,17 @@ async def onboard_sku(
         "notes": notes or "Dynamic Onboarding"
     }
 
-    for cfg_name in ["configs/sku_mapping.json", "configs/sku_mapping_v2.json"]:
-        cfg_path = workspace_root / cfg_name
-        if cfg_path.exists():
-            try:
-                with open(cfg_path, "r", encoding="utf-8") as f:
-                    cat_data = json.load(f)
-                if "classes" in cat_data:
-                    cat_data["classes"][str(class_id)] = sku_meta_record
-                    with open(cfg_path, "w", encoding="utf-8") as f:
-                        json.dump(cat_data, f, indent=2)
-            except Exception as err:
-                print(f"[Warning] Failed to save {cfg_name}: {err}")
+    cfg_path = workspace_root / "configs" / "sku_mapping.json"
+    if cfg_path.exists():
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cat_data = json.load(f)
+            if "classes" in cat_data:
+                cat_data["classes"][str(class_id)] = sku_meta_record
+                with open(cfg_path, "w", encoding="utf-8") as f:
+                    json.dump(cat_data, f, indent=2)
+        except Exception as err:
+            print(f"[Warning] Failed to save sku_mapping.json: {err}")
 
     if orchestrator and hasattr(orchestrator, "sku_mapping"):
         orchestrator.sku_mapping[class_id] = sku_meta_record
@@ -1203,7 +1639,15 @@ def get_class_exemplar(class_id: int):
             with open(images[0], "rb") as f:
                 return Response(content=f.read(), media_type="image/jpeg")
 
-    # Secondary fallback: ground-truth crop directories
+    # Secondary source: curated catalog exemplars bundled with the repository.
+    curated_dir = workspace_root / "configs" / "class_catalog" / f"class_{class_id:02d}"
+    if curated_dir.exists():
+        images = sorted(list(curated_dir.glob("*.jpg")) + list(curated_dir.glob("*.png")))
+        if images:
+            with open(images[0], "rb") as f:
+                return Response(content=f.read(), media_type="image/jpeg")
+
+    # Final fallback: ground-truth crop directories
     for parent in ["data/processed/crops/gt", "data/processed/crops/gt_clean"]:
         for split in ["train", "test"]:
             class_dir = workspace_root / parent / split / f"class_{class_id}"
@@ -1228,7 +1672,7 @@ def get_class_exemplar(class_id: int):
 # matched. Anything under a known API prefix still 404s as JSON rather than
 # silently returning HTML.
 # ---------------------------------------------------------------------------
-API_PREFIXES = ("/v1", "/api", "/static", "/healthz", "/metrics", "/docs", "/openapi.json", "/redoc")
+API_PREFIXES = ("/v1", "/api", "/static", "/healthz", "/health", "/metrics", "/docs", "/openapi.json", "/redoc")
 
 
 @app.get("/{spa_path:path}", include_in_schema=False)

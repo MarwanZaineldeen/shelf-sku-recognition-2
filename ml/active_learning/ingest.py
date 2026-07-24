@@ -98,7 +98,17 @@ class ReviewContextCache:
                 source_image=source_image,
                 crop_id=crop_id,
                 predicted_class_id=int(getattr(pred, "predicted_class_id", -1)),
-                top1_similarity=float(getattr(pred.bbox, "confidence", 0.0)),
+                # Detector confidence answers "is this a product box?". Review
+                # learning needs "how close was the top catalog exemplar?".
+                top1_similarity=float(
+                    getattr(pred, "visual_similarity", None)
+                    if getattr(pred, "visual_similarity", None) is not None
+                    else (
+                        pred.top5_candidates[0].get("similarity", 0.0)
+                        if getattr(pred, "top5_candidates", None)
+                        else getattr(pred, "confidence_probability", 0.0)
+                    )
+                ),
                 calibrated_probability=float(getattr(pred, "confidence_probability", 0.0)),
                 embedding=getattr(pred, "embedding", None),
                 candidates=getattr(pred, "top5_candidates", None),

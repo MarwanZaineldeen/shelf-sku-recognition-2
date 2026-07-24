@@ -12,6 +12,7 @@ import * as api from "./endpoints";
 import type {
   ActiveLearningStatus,
   AuditResponse,
+  Candidate,
   CatalogClass,
   CatalogResponse,
   HealthResponse,
@@ -101,9 +102,51 @@ export function useDeleteSkus() {
   return useMutation({
     mutationFn: (classIds: number[]) => api.deleteSkus(classIds),
     onSuccess: (result) => {
+      // Apply the committed server snapshot immediately; the background
+      // invalidation below only verifies it.
+      client.setQueryData<CatalogResponse>(queryKeys.catalog, result.catalog);
       // The server already told us the new next-id; seed it rather than refetch.
       client.setQueryData<NextClassIdResponse>(queryKeys.nextClassId, {
         next_class_id: result.next_class_id,
+      });
+      client.setQueryData<AuditResponse | null>(queryKeys.currentAudit, (previous) => {
+        if (!previous) return previous;
+        const deleted = new Set(result.deleted_class_ids);
+        const remap = (classId: number | null | undefined) => {
+          if (classId === null || classId === undefined || classId < 0) return classId;
+          if (deleted.has(classId)) return null;
+          return result.id_remap[String(classId)] ?? classId;
+        };
+        const remapCandidates = (candidates: Candidate[] | null | undefined) =>
+          candidates
+            ?.filter((candidate) => !deleted.has(candidate.class_id))
+            .map((candidate) => {
+              const classId = remap(candidate.class_id);
+              return {
+                ...candidate,
+                class_id: classId ?? candidate.class_id,
+                exemplar_url: classId === null ? candidate.exemplar_url : `/v1/exemplars/${classId}`,
+              };
+            });
+        return {
+          ...previous,
+          annotations: previous.annotations
+            .filter((item) => !deleted.has(item.class_id))
+            .map((item) => ({
+              ...item,
+              class_id: remap(item.class_id) ?? item.class_id,
+              predicted_class_id: remap(item.predicted_class_id) ?? item.predicted_class_id,
+              top5_candidates: remapCandidates(item.top5_candidates),
+            })),
+          hitl_queue: previous.hitl_queue
+            .filter((item) => item.class_id == null || !deleted.has(item.class_id))
+            .map((item) => ({
+              ...item,
+              class_id: remap(item.class_id),
+              predicted_class_id: remap(item.predicted_class_id),
+              top5_candidates: remapCandidates(item.top5_candidates),
+            })),
+        };
       });
       void client.invalidateQueries({ queryKey: queryKeys.catalog });
     },

@@ -4,7 +4,7 @@
 
 **Pipeline 2** is the **Few-Shot New SKU Onboarding Engine** of the Enterprise Retail AI Platform. It enables the system to onboard novel or previously un-trained commercial product SKUs into the retrieval database **in seconds without retraining deep learning models** (such as YOLO or DINO).
 
-By uploading **10 to 50 reference product crop images** of a new SKU, Pipeline 2 extracts normalized 768-D visual feature embeddings via **DINOv3**, registers the vectors directly into the production database (`data/processed/crops/gt_clean/retail_sku_registry_dinov3.db`), updates the active 2-layer hierarchical cosine search index in memory, populates commercial catalog metadata in `sku_mapping_v2.json`, syncs catalog thumbnails to `data/processed/Sku Preview/class_{class_id}/`, and runs an automated **Validation Shelf Recognition Audit** to benchmark detection accuracy before production deployment.
+By uploading **10 to 50 reference product crop images** of a new SKU, Pipeline 2 extracts normalized 768-D visual feature embeddings via **DINOv3**, registers the vectors directly into the production database (`data/processed/crops/gt_clean/retail_sku_registry_dinov3.db`), updates the active 2-layer hierarchical cosine search index in memory, populates commercial catalog metadata in the canonical `sku_mapping.json`, syncs catalog thumbnails to `data/processed/Sku Preview/class_{class_id}/`, and runs an automated **Validation Shelf Recognition Audit** to benchmark detection accuracy before production deployment.
 
 ---
 
@@ -20,7 +20,7 @@ flowchart TD
     
     D --> E["SQLite Production Gallery<br>(retail_sku_registry_dinov3.db)"]
     D --> F["Hierarchical Cosine Index<br>(Layer 1: Brand Centroids | Layer 2: 768-D Vectors)"]
-    D --> G["Commercial Catalog JSON<br>(sku_mapping_v2.json & sku_mapping.json)"]
+    D --> G["Commercial Catalog JSON<br>(sku_mapping.json)"]
     D --> K["Sku Preview Thumbnail Sync<br>(data/processed/Sku Preview/class_id/)"]
     
     E --> V2["Retriever Search Query"]
@@ -75,7 +75,7 @@ Crops are processed by `DINOv3Extractor` (`ml/embeddings/dinov3.py`):
 ### Step 5: Auto-Class ID Assignment & Commercial Catalog Registration
 - **Auto-Class ID Assignment**: If `class_id` is omitted or `-1`, the engine automatically computes:
   $$\text{new\_class\_id} = \max(\{ \text{class\_ids} \}) + 1$$
-- **Catalog JSON Updates**: Appends the 8-attribute commercial metadata schema into `configs/sku_mapping_v2.json` and `configs/sku_mapping.json`.
+- **Catalog JSON Updates**: Appends the commercial metadata schema into the canonical `configs/sku_mapping.json`.
 
 ---
 

@@ -712,7 +712,7 @@ document.addEventListener("DOMContentLoaded", () => {
         fetch("/v1/catalog/delete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ class_ids: classIds })
+            body: JSON.stringify({ class_ids: classIds, confirmation: "DELETE" })
         })
         .then(async res => {
             const text = await res.text();
@@ -1346,7 +1346,9 @@ document.addEventListener("DOMContentLoaded", () => {
             btnRunFastLoop.innerHTML = '<div class="spinner"></div> Pruning Near-Duplicates & Promoting Verified Vectors...';
 
             fetch("/v1/active-learning/curate", {
-                method: "POST"
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ apply: true, confirmation: "CURATE" })
             })
             .then(res => res.json())
             .then(data => {

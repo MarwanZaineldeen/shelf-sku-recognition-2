@@ -77,6 +77,18 @@ class PredictionDTO(BaseModel):
             "backbone pass. Internal only — never serialized into API responses."
         ),
     )
+    visual_similarity: Optional[float] = Field(
+        None,
+        description="Original rank-1 DINO cosine similarity before reranking.",
+    )
+    inference_mode: Optional[str] = Field(
+        None,
+        description="Decision source, e.g. visual_fast_path, qwen2_vl or heuristic_fallback.",
+    )
+    vlm_verified: bool = Field(
+        False,
+        description="True only when a valid response was received from the actual VLM.",
+    )
 
 
 # ==========================================

@@ -211,6 +211,7 @@ export default function LearningPage() {
         onOpenChange={setConfirmOpen}
         title="Run gallery curation?"
         confirmLabel="Run curation"
+        confirmationText="CURATE"
         loading={curate.isPending}
         description="Near-duplicate embeddings will be pruned and human-verified review crops promoted into the production gallery. Retrieval results for existing SKUs may shift after this completes."
         onConfirm={runCuration}

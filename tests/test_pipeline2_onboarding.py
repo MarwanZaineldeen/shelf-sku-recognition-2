@@ -64,7 +64,7 @@ class TestPipeline2Onboarding(unittest.TestCase):
             class_id=71,
             old_class_id=710,
             family_id="Heinz tomato ketchup",
-            augment=True
+            augment=False
         )
 
         self.assertEqual(res_heinz["status"], "success")

@@ -12,6 +12,12 @@ class BBoxOut(BaseModel):
 
 class DeleteSKUsRequest(BaseModel):
     class_ids: List[int]
+    confirmation: str
+
+
+class CurationRequest(BaseModel):
+    apply: bool = False
+    confirmation: Optional[str] = None
 
 
 class CommercialSKUOut(BaseModel):
@@ -31,6 +37,8 @@ class CandidateOut(BaseModel):
     vlm_selected: Optional[bool] = False
     s_fused: Optional[float] = None
     exemplar_url: Optional[str] = None
+    inference_mode: Optional[str] = None
+    vlm_verified: Optional[bool] = False
 
 
 class AnnotationOut(BaseModel):
@@ -44,6 +52,10 @@ class AnnotationOut(BaseModel):
     vlm_verified: Optional[bool] = None
     vlm_reason: Optional[str] = None
     commercial_sku: Optional[CommercialSKUOut] = None
+    top5_candidates: Optional[List[CandidateOut]] = None
+    predicted_class_id: Optional[int] = None
+    top1_similarity: Optional[float] = None
+    inference_mode: Optional[str] = None
 
 
 class HITLRecordOut(BaseModel):
@@ -59,6 +71,9 @@ class HITLRecordOut(BaseModel):
     vlm_reason: Optional[str] = None
     commercial_sku: Optional[CommercialSKUOut] = None
     top5_candidates: Optional[List[CandidateOut]] = None
+    predicted_class_id: Optional[int] = None
+    top1_similarity: Optional[float] = None
+    inference_mode: Optional[str] = None
 
 
 class AuditResponse(BaseModel):
@@ -67,6 +82,8 @@ class AuditResponse(BaseModel):
     processing_time_ms: float = 0.0
     annotations: List[AnnotationOut]
     hitl_queue: List[HITLRecordOut]
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
 
 
 class HealthResponse(BaseModel):
