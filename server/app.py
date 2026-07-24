@@ -585,6 +585,20 @@ def audit_sample():
 
 
 def _format_audit_response(filename: str, parent_data_url: str, annotations, hitl_queue, proc_time_ms: float = 0.0) -> AuditResponse:
+    # Pipeline 3: cache every prediction's audit-time context — keyed by
+    # (image name, crop id) — so a later /v1/hitl/review can recover the crop's
+    # 768-D query embedding without a second backbone pass. Without this the
+    # cache is always empty at review time, every review is stored with a NULL
+    # embedding, and "embeddings captured" never advances. Best-effort: a miss
+    # (e.g. server restart between audit and review) still records the review,
+    # just without its vector.
+    try:
+        cached = review_context_cache.put_predictions(filename, list(annotations) + list(hitl_queue))
+        if cached:
+            print(f"[Pipeline 3] Cached audit context for {cached} crop(s) from '{filename}'.")
+    except Exception as cache_err:
+        print(f"[Pipeline 3 Warning] Review context cache note: {cache_err}")
+
     out_annotations = []
     for pred in annotations:
         comm_out = None
